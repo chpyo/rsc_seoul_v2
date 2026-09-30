@@ -13,7 +13,8 @@ import firebaseConfigRaw from "../../firebase-applet-config.json";
 
 const firebaseConfig = {
   apiKey: firebaseConfigRaw.apiKey,
-  authDomain: firebaseConfigRaw.authDomain,
+  // 배포 도메인에서는 VITE_FIREBASE_AUTH_DOMAIN 에 앱 도메인을 넣는다 (/__/auth 는 vite.config 에서 프록시).
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigRaw.authDomain,
   projectId: firebaseConfigRaw.projectId,
   storageBucket: firebaseConfigRaw.storageBucket,
   messagingSenderId: firebaseConfigRaw.messagingSenderId,

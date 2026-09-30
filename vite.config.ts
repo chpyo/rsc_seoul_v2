@@ -3,6 +3,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
+import firebaseConfig from "./firebase-applet-config.json" with { type: "json" };
 
 const FIREBASE_EXTERNALS = [
   "firebase-admin",
@@ -48,6 +49,28 @@ export default defineConfig(({ command, mode, isPreview }) => {
                 functions: {
                   maxDuration: VERCEL_MAX_DURATION,
                 },
+                config: {
+                  // 보안 헤더. Nitro 가 routeRules.headers 로 만드는 경로에는 continue 가 없어
+                  // 모든 요청이 거기서 멈추므로, continue: true 를 직접 지정해 맨 앞에 둔다.
+                  routes: [
+                    {
+                      src: "/(.*)",
+                      headers: {
+                        "x-content-type-options": "nosniff",
+                        "referrer-policy": "strict-origin-when-cross-origin",
+                        "x-frame-options": "SAMEORIGIN",
+                        "permissions-policy": "camera=(), geolocation=(), microphone=(self)",
+                      },
+                      continue: true,
+                    },
+                  ],
+                },
+              },
+              routeRules: {
+                // Firebase 로그인 핸들러를 앱 도메인으로 프록시한다(Vercel 에서는 CDN rewrite).
+                // VITE_FIREBASE_AUTH_DOMAIN 을 앱 도메인으로 두면 서드파티 쿠키를 막는
+                // 브라우저에서도 로그인이 동작한다.
+                "/__/auth/**": { proxy: `https://${firebaseConfig.authDomain}/__/auth/**` },
               },
               rollupConfig: {
                 output: {

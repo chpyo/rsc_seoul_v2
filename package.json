@@ -16,7 +16,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "backup:firestore": "node scripts/ops/backup-firestore.mjs",
-    "test:rules": "firebase emulators:exec --only firestore,storage \"node --test tests/rules/\"",
+    "test:rules": "npx --yes firebase-tools@15 emulators:exec --project demo-rsc-seoul --only firestore,storage \"node --test tests/rules/\"",
     "migrate:membership": "node scripts/ops/migrate-membership.mjs"
   },
   "dependencies": {
