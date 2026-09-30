@@ -23,6 +23,11 @@
 - 검색은 서버 함수 `vectorSearch` 가 사용자 토큰으로 Firestore REST `findNearest` 호출. 인덱스는 `firestore.indexes.json`
 - 챗봇 답변 근거 표기: 현장록 `〔C1·S012〕`, 문헌 `〔L1〕` (`ask-corpus.ts` 가 C1/L1 → 원본 매핑 제공)
 
+## 근거 표시 (B2)
+- `src/components/evidence.tsx`: `EvidenceProvider`(원문 구간·이동·재생) 안에서 `CodeChip`/`EvidenceText`/`EvidenceInline` 이 S012 를 칩으로 표시
+- 회의록 본문 ○·- 문장 끝에 `(S012, S015)` 근거 코드 (분석 프롬프트 규칙 9). 원문에 없는 코드는 `keepKnownCodes` 로 제거
+- `/sessions/$id?seg=S012`, `/library/$id?seg=S012` 로 구간 이동. 답변은 `AnswerMarkdown` 이 〔C1·S012〕를 링크로 변환
+
 ## 규칙
 - AI 산출물 문체: 한국 공문서 개조식(1./□/○/-/※, `~함/~임`), 마크다운 `**` 금지, 근거 구간 코드(S001) 필수
 - 배포: Vercel Hobby — 요청 본문 4.5MB, 함수 최대 300초. 큰 파일은 Storage 경유(`src/lib/server/media.ts`), 긴 작업은 여러 호출로 분할. 절차는 `docs/deploy-vercel.md`

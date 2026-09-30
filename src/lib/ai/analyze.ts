@@ -1,4 +1,5 @@
 import { verifyThemeQuotes } from "@/lib/ai/evidence";
+import { keepKnownCodes } from "@/lib/evidence/parse";
 import { geminiJson } from "@/lib/ai/gemini";
 import { cleanOfficialDocumentText } from "@/lib/ai/official-format";
 import { ANALYSIS_JSON_SCHEMA, MINUTES_JSON_SCHEMA } from "@/lib/ai/schema";
@@ -38,7 +39,10 @@ const SYSTEM = `당신은 서울지역 인적자원개발위원회의 수석 조
 5. 모든 요지·사실·인용은 source_segments / segment_id로 구간 코드를 적으십시오. 코드는 S001 형식입니다.
 6. 주제 제목은 대화의 실제 언어를 쓰십시오. 미리 정한 조사표 항목명으로 억지 매칭하지 마십시오.
 7. 안 나온 항목을 "해당 없음" 섹션으로 만들지 마십시오.
-8. quotes.text는 해당 구간 원문을 그대로 복사하십시오. 말을 바꾸거나 요약하지 마십시오.`;
+8. quotes.text는 해당 구간 원문을 그대로 복사하십시오. 말을 바꾸거나 요약하지 마십시오.
+9. 회의록 본문(minutes.body)의 ○ 요지와 - 세부 문장 끝에는 근거 구간 코드를 괄호로 붙이십시오.
+   예: ○ 청년층 생산직 채용 기피 현상 심화 제기함 (S012, S015)
+   제공된 녹취·주제에 있는 구간 코드만 쓰고, 근거를 특정할 수 없으면 코드를 붙이지 마십시오.`;
 
 function formatSegments(segments: Array<ParsedSegment & { code: string }>): string {
   return segments
@@ -123,7 +127,7 @@ function normalizeAnalysis(raw: unknown, validCodes: Set<string>): AnalysisResul
       .slice(0, 16),
     minutes: {
       overview: str(minutesObj.overview),
-      body: cleanOfficialDocumentText(str(minutesObj.body)),
+      body: keepKnownCodes(cleanOfficialDocumentText(str(minutesObj.body)), validCodes),
       followups: asArr(minutesObj.followups).map((x) => str(x)).filter(Boolean),
     },
     unresolved: asArr(obj.unresolved).map((x) => str(x)).filter(Boolean),
@@ -259,6 +263,20 @@ export async function analyzeTranscript(input: {
   return applyEvidence(normalizeAnalysis(merged, validCodes), input.segments);
 }
 
+/** 다시 쓰기에서 쓸 수 있는 구간 코드: 주제 근거·인용·사실에 나온 코드 */
+function rewriteCodes(input: {
+  themes: AnalysisResult["themes"];
+  facts: AnalysisResult["facts"];
+}): Set<string> {
+  const codes = new Set<string>();
+  for (const t of input.themes) {
+    t.sourceSegments.forEach((c) => codes.add(c));
+    t.quotes.forEach((q) => q.segmentId && codes.add(q.segmentId));
+  }
+  input.facts.forEach((f) => f.segmentId && codes.add(f.segmentId));
+  return codes;
+}
+
 export async function rewriteMinutesFromThemes(input: {
   meta: {
     title: string;
@@ -317,7 +335,7 @@ export async function rewriteMinutesFromThemes(input: {
     obj.minutes && typeof obj.minutes === "object" ? (obj.minutes as Record<string, unknown>) : obj;
   return {
     overview: str(nested.overview),
-    body: cleanOfficialDocumentText(str(nested.body)),
+    body: keepKnownCodes(cleanOfficialDocumentText(str(nested.body)), rewriteCodes(input)),
     followups: asArr(nested.followups).map((x) => str(x)).filter(Boolean),
   };
 }

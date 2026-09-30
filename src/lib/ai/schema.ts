@@ -54,7 +54,7 @@ export const ANALYSIS_JSON_SCHEMA: { [key: string]: unknown } = {
         body: {
           type: "string",
           description:
-            "한국 공문서 개조식(箇條式) 본문. '**' 볼드 마크다운 구문 절대 금지. 1. / □ / ○ / - 공문서 글머리기호 체계와 '~함', '~됨' 종결어미 준수",
+            "한국 공문서 개조식(箇條式) 본문. '**' 볼드 마크다운 구문 절대 금지. 1. / □ / ○ / - 공문서 글머리기호 체계와 '~함', '~됨' 종결어미 준수. ○·- 문장 끝에 근거 구간 코드를 괄호로 표기 (예: (S012, S015))",
         },
         followups: { type: "array", items: { type: "string" } },
       },
@@ -104,7 +104,7 @@ export const MINUTES_JSON_SCHEMA: { [key: string]: unknown } = {
     body: {
       type: "string",
       description:
-        "한국 공문서 개조식(箇條式) 본문. '**' 볼드 마크다운 구문 절대 금지. 1. / □ / ○ / - 공문서 글머리기호 체계와 '~함', '~됨' 종결어미 준수",
+        "한국 공문서 개조식(箇條式) 본문. '**' 볼드 마크다운 구문 절대 금지. 1. / □ / ○ / - 공문서 글머리기호 체계와 '~함', '~됨' 종결어미 준수. ○·- 문장 끝에 근거 구간 코드를 괄호로 표기 (예: (S012, S015))",
     },
     followups: { type: "array", items: { type: "string" } },
   },

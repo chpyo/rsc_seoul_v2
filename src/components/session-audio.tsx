@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -12,10 +12,16 @@ export function SessionAudioPlayer({
   audio,
   canRetranscribe,
   onRetranscribe,
+  playerRef,
+  onAvailableChange,
 }: {
   audio: SessionAudio;
   canRetranscribe?: boolean;
   onRetranscribe?: (text: string) => Promise<void>;
+  /** 근거 칩에서 특정 시점으로 이동할 때 쓴다 */
+  playerRef?: RefObject<HTMLAudioElement | null>;
+  /** 녹음을 들을 수 있는지(권한·파일 존재) 알린다 */
+  onAvailableChange?: (available: boolean) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -25,14 +31,20 @@ export function SessionAudioPlayer({
     let cancelled = false;
     getAudioDownloadUrl(audio.storagePath)
       .then((next) => {
-        if (!cancelled) setUrl(next);
+        if (cancelled) return;
+        setUrl(next);
+        onAvailableChange?.(true);
       })
       .catch(() => {
-        if (!cancelled) setUrl(null);
+        if (cancelled) return;
+        setUrl(null);
+        onAvailableChange?.(false);
       });
     return () => {
       cancelled = true;
     };
+    // onAvailableChange 는 부모가 넘기는 콜백이라 의존성에서 뺀다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audio.storagePath]);
 
   const retryMut = useMutation({
@@ -89,11 +101,13 @@ export function SessionAudioPlayer({
         ) : null}
       </div>
       {url ? (
-        <audio controls src={url} className="w-full" preload="metadata">
+        <audio ref={playerRef} controls src={url} className="w-full" preload="metadata">
           이 브라우저는 오디오 재생을 지원하지 않습니다.
         </audio>
       ) : (
-        <p className="text-xs text-muted-foreground">원본 오디오를 불러오는 중</p>
+        <p className="text-xs text-muted-foreground">
+          원본 오디오를 불러오는 중이거나, 들을 권한이 없습니다(올린 사람과 관리자만 재생).
+        </p>
       )}
 
       <ConfirmDialog

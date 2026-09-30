@@ -12,11 +12,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { askConfirmedCorpusStream } from "@/lib/ai/ask-corpus";
-import Markdown from "react-markdown";
+import { AnswerMarkdown } from "@/components/answer-markdown";
 import { listLibraryCases, listProjects, listTags } from "@/lib/firebase-db";
 import { listLiteratures } from "@/lib/firebase-literature";
 import { useAuth } from "@/lib/auth-context";
-import type { ChatGroundedReply, SessionSummary } from "@/lib/types";
+import type { ChatGroundedReply, Citation, SessionSummary } from "@/lib/types";
 import type { LiteratureDoc } from "@/lib/firebase-literature";
 import { formatDateKo } from "@/lib/utils";
 
@@ -137,7 +137,9 @@ function LibraryPage() {
   const [projectId, setProjectId] = useState("");
   const [submitted, setSubmitted] = useState({ q: "", tags: [] as string[], projectId: "" });
   const [ask, setAsk] = useState("");
-  const [askResult, setAskResult] = useState<ChatGroundedReply | null>(null);
+  const [askResult, setAskResult] = useState<
+    (ChatGroundedReply & { citations: Record<string, Citation> }) | null
+  >(null);
   const [isPending, setIsPending] = useState(false);
   
 
@@ -236,11 +238,15 @@ function LibraryPage() {
             return;
           }
           setIsPending(true);
-          setAskResult({ answer: "", relatedCases: [] });
+          setAskResult({ answer: "", relatedCases: [], citations: {} });
           try {
             const stream = askConfirmedCorpusStream(uid, question, { projectId: projectId || undefined });
             for await (const chunk of stream) {
-              setAskResult({ answer: chunk.text, relatedCases: chunk.relatedCases });
+              setAskResult({
+                answer: chunk.text,
+                relatedCases: chunk.relatedCases,
+                citations: chunk.citations,
+              });
             }
           } catch (err) {
             toast.error(err instanceof Error ? err.message : "에러가 발생했습니다.");
@@ -276,7 +282,9 @@ function LibraryPage() {
           <div className="flex flex-col gap-3 border-t border-border pt-3">
             <RelatedCases cases={askResult.relatedCases} />
             {askResult.answer ? (
-              <div className="markdown-body text-sm"><Markdown>{askResult.answer}</Markdown></div>
+              <div className="markdown-body text-sm">
+                <AnswerMarkdown text={askResult.answer} citations={askResult.citations} />
+              </div>
             ) : null}
           </div>
         ) : null}

@@ -1,5 +1,6 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { CodeChip } from "@/components/evidence";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -113,16 +114,21 @@ export function ThemeCard({
       )}
 
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {theme.sourceSegmentIds.map((code) => (
-          <button
-            key={code}
-            type="button"
-            className="h-8 rounded-sm border border-inju/30 bg-card px-2.5 font-mono text-xs text-inju"
-            onClick={() => onJump(code)}
-          >
-            {code}
-          </button>
-        ))}
+        {theme.sourceSegmentIds.map((code) =>
+          locked ? (
+            <CodeChip key={code} code={code} className="h-8 px-2.5 text-xs" />
+          ) : (
+            // 편집 중에는 누르면 바로 원문으로 이동해 근거를 고르기 쉽게 한다.
+            <button
+              key={code}
+              type="button"
+              className="h-8 rounded-sm border border-inju/30 bg-card px-2.5 font-mono text-xs text-inju"
+              onClick={() => onJump(code)}
+            >
+              {code}
+            </button>
+          ),
+        )}
         {theme.sourceSegmentIds.length === 0 ? (
           <span className="text-xs text-inju">근거 구간 없음</span>
         ) : null}
@@ -159,9 +165,11 @@ export function ThemeCard({
               className="border-l-2 border-inju/50 pl-3 font-serif text-sm leading-relaxed"
             >
               {q.text}
-              <span className="mt-1 block font-sans font-mono text-xs text-muted-foreground">
-                {q.segmentId}
-              </span>
+              {q.segmentId ? (
+                <span className="mt-1 block font-sans text-xs">
+                  <CodeChip code={q.segmentId} />
+                </span>
+              ) : null}
             </blockquote>
           ),
         )}

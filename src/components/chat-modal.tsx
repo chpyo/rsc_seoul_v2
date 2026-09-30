@@ -14,13 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RelatedCases } from "@/components/related-cases";
 import { askConfirmedCorpusStream } from "@/lib/ai/ask-corpus";
-import Markdown from "react-markdown";
+import { AnswerMarkdown } from "@/components/answer-markdown";
 import { useAuth } from "@/lib/auth-context";
-import type { RelatedCase } from "@/lib/types";
+import type { Citation, RelatedCase } from "@/lib/types";
 
 type ChatMessage =
   | { role: "user"; text: string }
-  | { role: "ai"; text: string; relatedCases: RelatedCase[] };
+  | { role: "ai"; text: string; relatedCases: RelatedCase[]; citations: Record<string, Citation> };
 
 export function ChatModal({ projectId, projectTitle }: { projectId: string; projectTitle: string }) {
   const { user } = useAuth();
@@ -43,14 +43,19 @@ export function ChatModal({ projectId, projectTitle }: { projectId: string; proj
     setQuery("");
     setIsPending(true);
     
-    setHistory((prev) => [...prev, { role: "ai", text: "", relatedCases: [] }]);
+    setHistory((prev) => [...prev, { role: "ai", text: "", relatedCases: [], citations: {} }]);
     
     try {
       const stream = askConfirmedCorpusStream(uid, question, { projectId, projectTitle });
       for await (const chunk of stream) {
         setHistory((prev) => {
           const next = [...prev];
-          next[next.length - 1] = { role: "ai", text: chunk.text, relatedCases: chunk.relatedCases };
+          next[next.length - 1] = {
+            role: "ai",
+            text: chunk.text,
+            relatedCases: chunk.relatedCases,
+            citations: chunk.citations,
+          };
           return next;
         });
       }
@@ -105,7 +110,17 @@ export function ChatModal({ projectId, projectTitle }: { projectId: string; proj
                       : "bg-card border border-border rounded-tl-sm shadow-sm w-full"
                   }`}
                 >
-                  {msg.role === "ai" ? <div className="markdown-body"><Markdown>{msg.text}</Markdown></div> : msg.text}
+                  {msg.role === "ai" ? (
+                    <div className="markdown-body">
+                      <AnswerMarkdown
+                        text={msg.text}
+                        citations={msg.citations}
+                        onNavigate={() => setOpen(false)}
+                      />
+                    </div>
+                  ) : (
+                    msg.text
+                  )}
                 </div>
               </div>
             ))

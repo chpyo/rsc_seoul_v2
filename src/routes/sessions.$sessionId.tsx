@@ -5,13 +5,14 @@ import {
   Download,
   LoaderCircle,
   Pencil,
+  Play,
   Plus,
   ScanText,
   Sparkles,
   Trash2,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/status-badge";
 import { ThemeCard } from "@/components/theme-card";
@@ -28,6 +29,8 @@ import {
 } from "@/lib/minutes-export";
 import { parseTranscript, uniqueSpeakers } from "@/lib/parse-transcript";
 import { SessionAudioPlayer } from "@/components/session-audio";
+import { CodeChip, EvidenceProvider, EvidenceText } from "@/components/evidence";
+import { tsToSeconds } from "@/lib/evidence/parse";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { verifyThemeQuotes } from "@/lib/ai/evidence";
 import { cleanOfficialDocumentText } from "@/lib/ai/official-format";
@@ -57,6 +60,10 @@ import {
 } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/sessions/$sessionId")({
+  // ?seg=S012 로 들어오면 해당 원문 구간으로 이동해 강조한다.
+  validateSearch: (search: { seg?: string }): { seg?: string } => ({
+    seg: typeof search.seg === "string" && /^S\d{3,4}$/.test(search.seg) ? search.seg : undefined,
+  }),
   component: SessionWorkbench,
 });
 
@@ -125,6 +132,10 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
   const [evidenceConfirmOpen, setEvidenceConfirmOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
+  const [flashCode, setFlashCode] = useState<string | null>(null);
+  const [audioAvailable, setAudioAvailable] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const { seg: initialSeg } = Route.useSearch();
 
   useEffect(() => {
     setDraft(cloneSession(session));
@@ -443,18 +454,43 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
       ? session.segments.filter((s) => selected.sourceSegmentIds.includes(s.code))
       : session.segments;
 
-  const jumpTo = (code: string) => {
+  const jumpTo = useCallback((code: string) => {
     setSourceOnly(false);
     setMobilePane("transcript");
+    setFlashCode(code);
     requestAnimationFrame(() => {
       document.getElementById(`seg-${code}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!flashCode) return;
+    const t = window.setTimeout(() => setFlashCode(null), 2500);
+    return () => window.clearTimeout(t);
+  }, [flashCode]);
+
+  // 주소의 ?seg= 로 들어온 경우 한 번 이동
+  useEffect(() => {
+    if (initialSeg) jumpTo(initialSeg);
+  }, [initialSeg, jumpTo]);
+
+  const playAt = useCallback((seconds: number) => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.currentTime = seconds;
+    void el.play().catch(() => undefined);
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
 
   const busy = analyzeMut.isPending || rewriteMut.isPending;
   const speakerDirty = speakers.some((n) => speakerEdits[n] && speakerEdits[n] !== n);
 
   return (
+    <EvidenceProvider
+      segments={session.segments}
+      onJump={jumpTo}
+      onPlay={audioAvailable ? playAt : undefined}
+    >
     <div className="flex flex-col gap-4">
       {busy ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70">
@@ -679,6 +715,8 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
           {session.audio ? (
             <SessionAudioPlayer
               audio={session.audio}
+              playerRef={audioRef}
+              onAvailableChange={setAudioAvailable}
               canRetranscribe={!locked}
               onRetranscribe={async (text) => {
                 const parsed = parseTranscript(text);
@@ -730,14 +768,27 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
             ) : (
               visibleSegments.map((seg) => {
                 const active = selected?.sourceSegmentIds.includes(seg.code);
+                const seconds = seg.ts ? tsToSeconds(seg.ts) : null;
                 return (
-                  <li key={seg.id} id={`seg-${seg.code}`}>
+                  <li key={seg.id} id={`seg-${seg.code}`} className="relative scroll-mt-24">
+                    {audioAvailable && seconds != null ? (
+                      <button
+                        type="button"
+                        onClick={() => playAt(seconds)}
+                        className="absolute right-2 top-2 z-10 inline-flex size-8 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                        aria-label={`${seg.ts}부터 듣기`}
+                        title={`${seg.ts}부터 듣기`}
+                      >
+                        <Play className="size-3.5" />
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => toggleSource(seg.code)}
                       className={cn(
                         "w-full rounded-lg px-3 py-3 text-left transition-colors",
                         active ? "bg-highlight" : "hover:bg-muted/70",
+                        flashCode === seg.code && "ring-2 ring-primary ring-offset-1",
                       )}
                     >
                       <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
@@ -863,14 +914,20 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
                 </div>
               ) : null}
               <label className="text-xs font-medium text-muted-foreground">개요</label>
-              <Textarea
-                rows={4}
-                disabled={locked}
-                value={draft.minutesOverview}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, minutesOverview: e.target.value }))
-                }
-              />
+              {locked ? (
+                <EvidenceText
+                  text={draft.minutesOverview || "(없음)"}
+                  className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm leading-relaxed"
+                />
+              ) : (
+                <Textarea
+                  rows={4}
+                  value={draft.minutesOverview}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, minutesOverview: e.target.value }))
+                  }
+                />
+              )}
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">
                   본문 (한국 공문서 표준 개조식)
@@ -890,14 +947,33 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
                   </button>
                 ) : null}
               </div>
-              <Textarea
-                rows={16}
-                disabled={locked}
-                className="font-serif leading-relaxed text-sm"
-                value={draft.minutesBody}
-                onChange={(e) => setDraft((d) => ({ ...d, minutesBody: e.target.value }))}
-                placeholder="1. 대주제&#10;  □ 핵심 안건 및 논의 사항&#10;    ○ 주요 발언 및 현황 요지 (~함, ~임)&#10;      - 세부 근거 및 통계 데이터"
-              />
+              {locked ? (
+                <EvidenceText
+                  text={draft.minutesBody || "(없음)"}
+                  className="rounded-md border border-border bg-muted/20 px-3 py-2 font-serif text-sm leading-relaxed"
+                />
+              ) : (
+                <>
+                <Textarea
+                  rows={16}
+                  className="font-serif leading-relaxed text-sm"
+                  value={draft.minutesBody}
+                  onChange={(e) => setDraft((d) => ({ ...d, minutesBody: e.target.value }))}
+                  placeholder="1. 대주제&#10;  □ 핵심 안건 및 논의 사항&#10;    ○ 주요 발언 및 현황 요지 (~함, ~임)&#10;      - 세부 근거 및 통계 데이터"
+                />
+                  {/\bS\d{3,4}\b/.test(draft.minutesBody) ? (
+                    <details className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                      <summary className="cursor-pointer text-xs text-muted-foreground">
+                        근거 구간 연결 미리보기
+                      </summary>
+                      <EvidenceText
+                        text={draft.minutesBody}
+                        className="mt-2 font-serif text-sm leading-relaxed"
+                      />
+                    </details>
+                  ) : null}
+                </>
+              )}
               <label className="text-xs font-medium text-muted-foreground">후속 확인</label>
               <Textarea
                 rows={4}
@@ -948,6 +1024,7 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
         }}
       />
     </div>
+    </EvidenceProvider>
   );
 }
 
@@ -976,13 +1053,18 @@ function FactRow({
         placeholder="값"
         onChange={(e) => onChange({ ...fact, value: e.target.value })}
       />
-      <Input
-        disabled={locked}
-        value={fact.segmentCode}
-        className="font-mono text-xs"
-        placeholder="S001"
-        onChange={(e) => onChange({ ...fact, segmentCode: e.target.value })}
-      />
+      {locked ? (
+        <span className="flex items-center justify-center">
+          {fact.segmentCode ? <CodeChip code={fact.segmentCode} /> : null}
+        </span>
+      ) : (
+        <Input
+          value={fact.segmentCode}
+          className="font-mono text-xs"
+          placeholder="S001"
+          onChange={(e) => onChange({ ...fact, segmentCode: e.target.value })}
+        />
+      )}
       {!locked ? (
         <Button size="icon" variant="ghost" onClick={onRemove} aria-label="사실 삭제">
           <Trash2 className="size-4" />
@@ -1028,13 +1110,18 @@ function ActionItemRow({
         className="h-8 text-sm"
         onChange={(e) => onChange({ ...item, task: e.target.value })}
       />
-      <Input
-        disabled={locked}
-        value={item.segmentCode}
-        className="font-mono text-xs h-8"
-        placeholder="S001"
-        onChange={(e) => onChange({ ...item, segmentCode: e.target.value })}
-      />
+      {locked ? (
+        <span className="flex items-center justify-center">
+          {item.segmentCode ? <CodeChip code={item.segmentCode} /> : null}
+        </span>
+      ) : (
+        <Input
+          value={item.segmentCode}
+          className="font-mono text-xs h-8"
+          placeholder="S001"
+          onChange={(e) => onChange({ ...item, segmentCode: e.target.value })}
+        />
+      )}
       {!locked ? (
         <Button size="icon" variant="ghost" onClick={onRemove} aria-label="삭제" className="size-8">
           <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />

@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { ArrowLeft, Download, LoaderCircle, Pencil } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { ArrowLeft, Download, LoaderCircle, Pencil, Play } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { CodeChip, EvidenceInline, EvidenceProvider } from "@/components/evidence";
+import { SessionAudioPlayer } from "@/components/session-audio";
+import { tsToSeconds } from "@/lib/evidence/parse";
 import { Button } from "@/components/ui/button";
 import {
   buildMinutesHtml,
@@ -13,9 +16,13 @@ import {
 import { getSession } from "@/lib/firebase-db";
 import { useAuth } from "@/lib/auth-context";
 import type { SessionDetail } from "@/lib/types";
-import { formatDateKo } from "@/lib/utils";
+import { cn, formatDateKo } from "@/lib/utils";
 
 export const Route = createFileRoute("/library/$sessionId")({
+  // ?seg=S012 로 들어오면 원문 구간을 펼쳐 해당 구간으로 이동한다.
+  validateSearch: (search: { seg?: string }): { seg?: string } => ({
+    seg: typeof search.seg === "string" && /^S\d{3,4}$/.test(search.seg) ? search.seg : undefined,
+  }),
   component: LibraryCasePage,
 });
 
@@ -54,6 +61,40 @@ function LibraryCasePage() {
 
 function CaseMinutes({ session }: { session: SessionDetail }) {
   const [exportOpen, setExportOpen] = useState(false);
+  const { seg: initialSeg } = Route.useSearch();
+  const [sourceOpen, setSourceOpen] = useState(!!initialSeg);
+  const [flashCode, setFlashCode] = useState<string | null>(null);
+  const [audioAvailable, setAudioAvailable] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const jumpTo = useCallback((code: string) => {
+    setSourceOpen(true);
+    setFlashCode(code);
+    // 원문 구간 목록이 펼쳐진 뒤 스크롤
+    window.setTimeout(() => {
+      document
+        .getElementById(`lib-seg-${code}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  }, []);
+
+  useEffect(() => {
+    if (initialSeg) jumpTo(initialSeg);
+  }, [initialSeg, jumpTo]);
+
+  useEffect(() => {
+    if (!flashCode) return;
+    const t = window.setTimeout(() => setFlashCode(null), 2500);
+    return () => window.clearTimeout(t);
+  }, [flashCode]);
+
+  const playAt = useCallback((seconds: number) => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.currentTime = seconds;
+    void el.play().catch(() => undefined);
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
   const quotes = session.themes.flatMap((t) => t.quotes.map((q) => ({ theme: t.title, ...q })));
 
   function doExport(kind: "html" | "doc" | "md") {
@@ -86,6 +127,11 @@ function CaseMinutes({ session }: { session: SessionDetail }) {
     .join(" · ");
 
   return (
+    <EvidenceProvider
+      segments={session.segments}
+      onJump={jumpTo}
+      onPlay={audioAvailable ? playAt : undefined}
+    >
     <article className="mx-auto flex max-w-3xl flex-col gap-8">
       <div className="flex flex-col gap-4">
         <Link
@@ -148,7 +194,7 @@ function CaseMinutes({ session }: { session: SessionDetail }) {
 
       <Section title="개요">
         <p className="font-serif text-sm leading-relaxed text-ink-soft">
-          {session.minutesOverview.trim() || "(없음)"}
+          <EvidenceInline text={session.minutesOverview.trim() || "(없음)"} />
         </p>
       </Section>
 
@@ -166,7 +212,9 @@ function CaseMinutes({ session }: { session: SessionDetail }) {
                 <span className="font-medium">{fact.label}</span>
                 <span className="text-ink-soft"> : {fact.value}</span>
                 {fact.segmentCode ? (
-                  <span className="ml-2 font-mono text-xs text-muted-foreground">{fact.segmentCode}</span>
+                  <span className="ml-2 text-xs">
+                    <CodeChip code={fact.segmentCode} />
+                  </span>
                 ) : null}
               </li>
             ))}
@@ -181,9 +229,13 @@ function CaseMinutes({ session }: { session: SessionDetail }) {
               <li key={item.id} className="rounded-lg border border-border bg-card px-3 py-2.5 text-sm">
                 <p className="font-medium">{item.task || "(내용 없음)"}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {[item.assignee || "담당 미정", item.deadline || "기한 미정", item.segmentCode]
-                    .filter(Boolean)
-                    .join(" · ")}
+                  {[item.assignee || "담당 미정", item.deadline || "기한 미정"].join(" · ")}
+                  {item.segmentCode ? (
+                    <>
+                      {" · "}
+                      <CodeChip code={item.segmentCode} />
+                    </>
+                  ) : null}
                 </p>
               </li>
             ))}
@@ -204,7 +256,12 @@ function CaseMinutes({ session }: { session: SessionDetail }) {
                 <p className="font-serif text-sm leading-relaxed text-ink-soft">“{quote.text}”</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {quote.theme}
-                  {quote.segmentId ? ` · ${quote.segmentId}` : ""}
+                  {quote.segmentId ? (
+                    <>
+                      {" · "}
+                      <CodeChip code={quote.segmentId} />
+                    </>
+                  ) : null}
                 </p>
               </blockquote>
             ))}
@@ -231,7 +288,65 @@ function CaseMinutes({ session }: { session: SessionDetail }) {
           <p className="text-sm text-muted-foreground">{session.tagLabels.map((t) => `#${t}`).join("  ")}</p>
         </Section>
       ) : null}
+
+      <section className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => setSourceOpen((v) => !v)}
+          aria-expanded={sourceOpen}
+          className="flex items-center justify-between text-left"
+        >
+          <h2 className="font-serif text-xl font-semibold">원문 구간</h2>
+          <span className="text-sm text-muted-foreground">
+            {session.segments.length}개 · {sourceOpen ? "접기" : "펼치기"}
+          </span>
+        </button>
+        {session.audio ? (
+          <div className={cn("rounded-lg border border-border", !sourceOpen && "hidden")}>
+            <SessionAudioPlayer
+              audio={session.audio}
+              playerRef={audioRef}
+              onAvailableChange={setAudioAvailable}
+            />
+          </div>
+        ) : null}
+        {sourceOpen ? (
+          <ol className="flex flex-col gap-1">
+            {session.segments.map((seg) => {
+              const seconds = seg.ts ? tsToSeconds(seg.ts) : null;
+              return (
+                <li
+                  key={seg.id}
+                  id={`lib-seg-${seg.code}`}
+                  className={cn(
+                    "scroll-mt-24 rounded-lg px-3 py-2.5",
+                    flashCode === seg.code ? "bg-highlight ring-2 ring-primary" : "",
+                  )}
+                >
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-mono">{seg.code}</span>
+                    <span className="font-medium text-foreground">{seg.speaker}</span>
+                    {seg.ts ? <span className="font-mono">{seg.ts}</span> : null}
+                    {audioAvailable && seconds != null ? (
+                      <button
+                        type="button"
+                        onClick={() => playAt(seconds)}
+                        className="ml-auto inline-flex size-7 items-center justify-center rounded-sm hover:bg-muted hover:text-foreground"
+                        aria-label={`${seg.ts}부터 듣기`}
+                      >
+                        <Play className="size-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{seg.body}</p>
+                </li>
+              );
+            })}
+          </ol>
+        ) : null}
+      </section>
     </article>
+    </EvidenceProvider>
   );
 }
 
@@ -259,7 +374,7 @@ function MinutesBody({ text }: { text: string }) {
     if (!para.length) return;
     blocks.push(
       <p key={key} className="font-serif text-sm leading-relaxed text-ink-soft">
-        {para.join(" ")}
+        <EvidenceInline text={para.join(" ")} />
       </p>,
     );
     para = [];
@@ -275,7 +390,7 @@ function MinutesBody({ text }: { text: string }) {
       flush(`p-${i}`);
       blocks.push(
         <h3 key={`h-${i}`} className="font-serif text-base font-bold text-foreground mt-3.5 mb-1">
-          {t.replace(/^##?\s+/, "")}
+          <EvidenceInline text={t.replace(/^##?\s+/, "")} />
         </h3>,
       );
       return;
@@ -285,7 +400,7 @@ function MinutesBody({ text }: { text: string }) {
       flush(`p-${i}`);
       blocks.push(
         <h3 key={`h-${i}`} className="font-serif text-base font-bold text-foreground mt-3.5 mb-1">
-          {t}
+          <EvidenceInline text={t} />
         </h3>,
       );
       return;
@@ -295,7 +410,7 @@ function MinutesBody({ text }: { text: string }) {
       flush(`p-${i}`);
       blocks.push(
         <h4 key={`sq-${i}`} className="font-serif text-sm font-semibold text-foreground mt-2 mb-0.5 pl-2 border-l-2 border-primary/50">
-          {t}
+          <EvidenceInline text={t} />
         </h4>,
       );
       return;
@@ -305,7 +420,7 @@ function MinutesBody({ text }: { text: string }) {
       flush(`p-${i}`);
       blocks.push(
         <p key={`ci-${i}`} className="font-serif text-sm leading-relaxed text-ink-soft pl-4">
-          {t}
+          <EvidenceInline text={t} />
         </p>,
       );
       return;
@@ -315,7 +430,7 @@ function MinutesBody({ text }: { text: string }) {
       flush(`p-${i}`);
       blocks.push(
         <p key={`li-${i}`} className="font-serif text-sm leading-relaxed text-muted-foreground pl-7">
-          {t.startsWith("- ") ? `- ${t.slice(2)}` : t}
+          <EvidenceInline text={t.startsWith("- ") ? `- ${t.slice(2)}` : t} />
         </p>,
       );
       return;
@@ -325,7 +440,7 @@ function MinutesBody({ text }: { text: string }) {
       flush(`p-${i}`);
       blocks.push(
         <p key={`note-${i}`} className="font-serif text-xs leading-relaxed text-muted-foreground italic pl-7">
-          {t}
+          <EvidenceInline text={t} />
         </p>,
       );
       return;
