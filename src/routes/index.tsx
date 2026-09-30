@@ -193,11 +193,11 @@ function Home() {
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">{s.title}</p>
                       {s.isOwner ? (
-                        <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                        <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
                           내 자료
                         </span>
                       ) : (
-                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                           {s.researcher ? `${s.researcher} 연구원` : "공동자료"}
                         </span>
                       )}

@@ -1,6 +1,11 @@
 # CLAUDE.md
 
-현장록(RSC_seoul): 서울지역 인적자원개발위원회 현장조사·문헌 분석 도구. 사용자와 UI 문구는 한국어.
+서울인자위 조사록(코드명 rsc-seoul): 서울지역 인적자원개발위원회 현장조사·문헌 분석 도구. 모듈은 현장록·문헌록·자료실. 사용자와 UI 문구는 한국어.
+
+## 디자인 규칙
+- 색은 한 의미만: 청록 `primary`=행동, 인주 `inju`=확정·근거(오류에 쓰지 않음), 황토 `review`=검토 필요, `destructive`=오류·삭제. Tailwind 기본 팔레트(amber/red-500 등) 직접 사용 금지
+- 글자 최소 12px(`text-xs`). `text-[10px]`·`text-[11px]` 금지
+- 이름·문구는 `src/lib/brand.ts`. UI 문구에 공급자 이름(Gemini 등) 대신 하는 일을 쓴다. 오류는 원인 + 다음 행동
 
 ## 명령
 - `npm run dev` (localhost:3000) · `npm run typecheck` · `npm run lint` · `npm test` · `npm run build` (Vercel 출력)

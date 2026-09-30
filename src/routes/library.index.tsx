@@ -221,7 +221,7 @@ function LibraryPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-serif text-4xl font-semibold tracking-tight">통합 자료실</h1>
+        <h1 className="font-serif text-4xl font-semibold tracking-tight">자료실</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           현장록(확정본)과 문헌록 데이터를 교차 검색하고 분석합니다.
         </p>
@@ -374,9 +374,9 @@ function LibraryPage() {
                                                             <span className="text-xs text-muted-foreground line-clamp-1">{lit.document_metadata?.literature_type || "연구보고서"}</span>
                                                         </div>
                                                         {lit.isOwner ? (
-                                                            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">내 자료</span>
+                                                            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">내 자료</span>
                                                         ) : (
-                                                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{lit.author_name || "공동자료"}</span>
+                                                            <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{lit.author_name || "공동자료"}</span>
                                                         )}
                                                     </div>
                                                     <h3 className="font-serif text-base font-semibold leading-snug line-clamp-2 mb-2">
@@ -388,7 +388,7 @@ function LibraryPage() {
                                                     {lit.tags && Array.isArray(lit.tags) && lit.tags.length > 0 && (
                                                       <div className="mt-2 flex flex-wrap gap-1">
                                                         {lit.tags.slice(0, 3).map((tag, i) => (
-                                                          <span key={i} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                                          <span key={i} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                                                             #{tag}
                                                           </span>
                                                         ))}
@@ -421,12 +421,12 @@ function LibraryPage() {
                                     <CardContent className="flex flex-col gap-2 p-5">
                                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                                         <div className="flex items-center gap-2">
-                                            <span className="inline-flex items-center rounded bg-inju/10 px-2 py-0.5 text-xs font-medium text-inju-dark">현장록</span>
+                                            <span className="inline-flex items-center rounded bg-inju/10 px-2 py-0.5 text-xs font-medium text-inju">현장록</span>
                                             <h3 className="font-serif text-lg font-semibold">{item.title}</h3>
                                             {item.isOwner ? (
-                                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">내 자료</span>
+                                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">내 자료</span>
                                             ) : (
-                                                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{item.researcher || "공동자료"}</span>
+                                                <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{item.researcher || "공동자료"}</span>
                                             )}
                                         </div>
                                         <p className="text-xs text-muted-foreground">

@@ -141,7 +141,7 @@ function AccessStatus() {
 
   const aiValue = env.isLoading ? "확인 중" : env.data?.configured ? "연결됨" : "키 없음";
   const aiDetail = env.data?.configured
-    ? "Gemini 호출은 서버에서만 이뤄지며 API 키는 브라우저로 전달되지 않습니다."
+    ? "AI 분석·전사는 서버에서만 실행되며 API 키는 브라우저로 전달되지 않습니다."
     : "서버 환경 변수 GEMINI_API_KEY 가 없어 분석·전사·챗봇을 쓸 수 없습니다. 관리자에게 알려 주세요.";
 
   return (

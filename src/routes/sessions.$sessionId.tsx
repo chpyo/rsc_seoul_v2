@@ -522,7 +522,7 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
                 <strong>공동 열람 모드</strong>: {session.researcher ? `${session.researcher} 연구원` : "동료 연구원"}이 등록한 자료입니다.
               </span>
             </div>
-            <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
               읽기 및 내보내기 전용
             </span>
           </div>
@@ -649,7 +649,7 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
           </p>
         ) : null}
         {!locked && needsEvidenceReview ? (
-          <p className="rounded-md border border-inju/40 bg-card px-3 py-2 text-sm text-ink-soft">
+          <p className="rounded-md border border-review/30 bg-review-soft px-3 py-2 text-sm text-review">
             확정 전에 확인하세요.
             {lowThemeCount > 0 ? ` 확신 낮음 ${lowThemeCount}개.` : ""}
             {missingSourceCount > 0 ? ` 근거 없는 주제 ${missingSourceCount}개.` : ""}
@@ -739,7 +739,7 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
             <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 py-3">
               {speakers.map((name) => (
                 <label key={name} className="flex min-w-28 flex-1 flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">{name}</span>
+                  <span className="text-xs text-muted-foreground">{name}</span>
                   <Input
                     value={speakerEdits[name] ?? name}
                     onChange={(e) =>

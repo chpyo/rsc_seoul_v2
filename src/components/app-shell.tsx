@@ -14,15 +14,15 @@ import {
 import { type ReactNode } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
-import { APP_NAME, APP_NAME_EN, APP_TAGLINE } from "@/lib/brand";
+import { APP_NAME, APP_NAME_EN, APP_NAME_SHORT, APP_ORG, APP_TAGLINE, MODULES } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { ROLE_LABELS } from "@/lib/membership";
 
 const NAV = [
-  { to: "/", label: "현장록", icon: FolderOpen, match: "home" as const },
-  { to: "/literature", label: "문헌록", icon: BookOpen, match: "literature" as const },
-  { to: "/library", label: "통합 자료실", icon: Library, match: "library" as const },
+  { to: "/", label: MODULES.field, icon: FolderOpen, match: "home" as const },
+  { to: "/literature", label: MODULES.literature, icon: BookOpen, match: "literature" as const },
+  { to: "/library", label: MODULES.library, icon: Library, match: "library" as const },
 ] as const;
 
 function navActive(pathname: string, match: (typeof NAV)[number]["match"]) {
@@ -54,7 +54,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link to="/" className="flex min-w-0 items-center gap-2.5">
             <BrandMark className="size-8 text-primary" />
             <span className="font-serif text-lg leading-none font-semibold tracking-tight">
-              {APP_NAME}
+              <span className="hidden sm:inline">{APP_NAME}</span>
+              <span className="sm:hidden">{APP_NAME_SHORT}</span>
             </span>
           </Link>
 
@@ -89,7 +90,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="flex items-center gap-1.5">
                 {isAdmin ? (
                   <span
-                    className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400"
+                    className="inline-flex items-center gap-1 rounded border border-primary/25 bg-primary/5 px-2 py-0.5 text-xs font-semibold text-primary"
                     title="모든 프로젝트와 자료의 수정·삭제, 멤버 관리 권한을 가진 관리자 계정입니다"
                   >
                     <ShieldCheck className="size-3.5" />
@@ -153,6 +154,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <p className="mt-1 text-xs tracking-wide text-muted-foreground uppercase">
                 {APP_NAME_EN}
               </p>
+              <p className="mt-3 text-sm text-muted-foreground">{APP_ORG}</p>
               <p className="mt-4 text-sm leading-relaxed text-ink-soft">{APP_TAGLINE}</p>
               <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
                 현장 기록을 이어서 보려면 로그인하세요.
@@ -176,7 +178,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.to}
                 to={item.to}
                 className={cn(
-                  "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium",
+                  "flex h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium",
                   active ? "text-primary" : "text-muted-foreground",
                 )}
               >
@@ -190,7 +192,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               to="/upload"
               search={{ projectId: undefined }}
               className={cn(
-                "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium",
+                "flex h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium",
                 uploadActive ? "text-primary" : "text-muted-foreground",
               )}
             >

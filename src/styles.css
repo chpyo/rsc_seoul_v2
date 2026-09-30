@@ -1,6 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/*
+ * 서울인자위 조사록 — 색은 하나의 의미만 가진다.
+ *   먹(foreground)   글자
+ *   한지(background/card) 바탕
+ *   청록(primary)    행동: 주 버튼, 선택 상태
+ *   인주(inju)       확정·근거: 확정 인장, 근거 구간 칩 — 오류·삭제에는 쓰지 않는다
+ *   황토(review)     검토 필요: 확신 낮음, 근거 없음, 미해소
+ *   적색(destructive) 오류·삭제 — 인주와 구분되는 밝은 적색 + 아이콘과 함께
+ */
 @theme {
   --color-background: #f3f1eb;
   --color-foreground: #1b1d1c;
@@ -16,10 +25,14 @@
   --color-muted-foreground: #5c605d;
   --color-accent: #dfe8e3;
   --color-accent-foreground: #1b1d1c;
-  --color-destructive: #8f2d2d;
+  --color-destructive: #b42318;
   --color-destructive-foreground: #fbfaf6;
   --color-inju: #8c3b2a;
   --color-inju-foreground: #f6f4ef;
+  --color-inju-soft: #f3e4df;
+  --color-review: #7f5617;
+  --color-review-foreground: #fbf7ee;
+  --color-review-soft: #f6ecd8;
   --color-border: #ddd6c8;
   --color-input: #ddd6c8;
   --color-ring: #243f38;

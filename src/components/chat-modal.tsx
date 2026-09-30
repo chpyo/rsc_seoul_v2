@@ -95,7 +95,7 @@ export function ChatModal({ projectId, projectTitle }: { projectId: string; proj
                   msg.role === "user" ? "ml-auto items-end" : "mr-auto items-start w-full max-w-full"
                 }`}
               >
-                <span className="text-[11px] text-muted-foreground mb-1 px-1">
+                <span className="text-xs text-muted-foreground mb-1 px-1">
                   {msg.role === "user" ? "나" : "AI 어시스턴트"}
                 </span>
                 {msg.role === "ai" && msg.relatedCases.length > 0 ? (

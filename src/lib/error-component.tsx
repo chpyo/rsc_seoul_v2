@@ -26,17 +26,17 @@ export function AppErrorComponent({ error, reset }: ErrorComponentProps) {
     <main
       className={
         "flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center " +
-        "bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50"
+        "bg-background text-foreground"
       }
     >
-      <span className="text-red-500" aria-hidden="true">
+      <span className="text-destructive" aria-hidden="true">
         <TriangleAlert className="size-10" strokeWidth={2} />
       </span>
       <h1 className="text-lg font-semibold">
-        {isChunkError ? "리소스 로딩 중 오류가 발생했습니다" : "Something went wrong"}
+        {isChunkError ? "리소스 로딩 중 오류가 발생했습니다" : "화면을 표시하지 못했습니다"}
       </h1>
-      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">
-        {errorMessage || "An unexpected error occurred. Try reloading the page."}
+      <p className="max-w-md text-sm break-words text-muted-foreground">
+        {errorMessage || "예기치 못한 오류가 발생했습니다. 페이지를 새로고침해 주세요."}
       </p>
       <button
         type="button"
@@ -47,7 +47,7 @@ export function AppErrorComponent({ error, reset }: ErrorComponentProps) {
             reset();
           }
         }}
-        className="mt-2 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-zinc-900 rounded-md hover:bg-zinc-800 transition-colors dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 cursor-pointer"
+        className="mt-2 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-md hover:bg-primary/90 transition-colors cursor-pointer"
       >
         <RefreshCw className="size-4" />
         페이지 새로고침

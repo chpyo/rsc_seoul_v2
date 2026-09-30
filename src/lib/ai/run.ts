@@ -41,10 +41,10 @@ function failMessage(err: unknown, fallback: string) {
     msg.includes("credits are depleted") ||
     msg.includes("billing#prepay")
   ) {
-    return "Google AI Studio API 크레딧(Prepayment credits)이 모두 소진되었습니다. AI Studio 프로젝트 설정(https://ai.studio/projects)에서 결제 수단 또는 크레딧 잔액을 확인해 주세요.";
+    return "AI 사용 한도(크레딧)가 소진되어 AI 기능을 쓸 수 없습니다. 관리자에게 알려 주세요. (관리자: Google AI Studio 결제·크레딧 설정 확인)";
   }
   if (msg.includes("no longer available to new users")) {
-    return "해당 Gemini AI 모델이 Google API에서 지원 종료되었습니다. 최신 모델(Gemini 3.5 Flash-Lite / 3.8 Flash)로 전환되었습니다. 다시 시도해 주세요.";
+    return "AI 모델이 바뀌어 요청이 거절됐습니다. 잠시 후 다시 시도하고, 계속되면 관리자에게 알려 주세요.";
   }
   if (
     msg.includes("503") ||
@@ -52,7 +52,7 @@ function failMessage(err: unknown, fallback: string) {
     msg.includes("UNAVAILABLE") ||
     msg.includes("Spikes in demand")
   ) {
-    return "Gemini AI 모델 서버가 일시적인 이용량 급증(503) 상태입니다. 잠시 후 다시 시도해 주세요.";
+    return "AI 서버가 일시적으로 붐빕니다(503). 1~2분 뒤 다시 시도해 주세요.";
   }
   if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
     return "API 요청 한도(429 Quota Exceeded)에 도달했습니다. 잠시 후 다시 시도해 주세요.";

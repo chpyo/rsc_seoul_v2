@@ -305,7 +305,7 @@ function RelatedFieldNotes({
   return (
     <div className="mt-4 border-t border-border/50 pt-3">
       <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-        🔗 이 연구와 유사한 현장의 목소리 (현장록 매핑)
+        관련 현장록
       </h4>
       <div className="space-y-2">
         {related.map((hit) => (

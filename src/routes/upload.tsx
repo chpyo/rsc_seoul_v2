@@ -188,7 +188,9 @@ function UploadPage() {
 
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.lineWidth = 2;
-          ctx.strokeStyle = "rgb(239, 68, 68)"; // tailwind destructive color
+          ctx.strokeStyle =
+            getComputedStyle(document.documentElement).getPropertyValue("--color-destructive").trim() ||
+            "#b42318";
           ctx.beginPath();
 
           const sliceWidth = (canvas.width * 1.0) / bufferLength;
@@ -394,7 +396,7 @@ function UploadPage() {
         <h1 className="font-serif text-4xl font-semibold tracking-tight">녹취 올리기</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           화자와 구간이 나뉜 텍스트, 워드, 한글(HWPX)을 받습니다. 음성은 원본을 먼저 보관한 뒤
-          Gemini Files API로 전사합니다.
+          15분 단위로 나눠 전사합니다.
         </p>
       </div>
 
@@ -450,7 +452,7 @@ function UploadPage() {
                   {audioPhase === "uploading"
                     ? `오디오 파일 전송 중 (${uploadPct}%)...`
                     : audioPhase === "transcribing"
-                      ? `Gemini 음성 전사 · ${transcribeLabel || "진행 중"}`
+                      ? `음성 전사 · ${transcribeLabel || "진행 중"}`
                       : audioPhase === "failed"
                         ? "음성 전사 실패"
                         : audioPhase === "ready"

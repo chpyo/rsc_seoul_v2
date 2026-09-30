@@ -1,14 +1,22 @@
 {
-  "name": "RSC_seoul 현장록",
-  "short_name": "현장록",
-  "description": "서울 인적자원개발위원회 현장조사 도구 - 인터뷰 및 회의록 분석 시스템",
+  "name": "서울인자위 조사록",
+  "short_name": "조사록",
+  "description": "서울지역 인적자원개발위원회 현장조사·문헌 분석 도구",
   "lang": "ko",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f3f1eb",
-  "theme_color": "#0f172a",
+  "theme_color": "#243f38",
   "icons": [
-    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
   ]
 }

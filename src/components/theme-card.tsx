@@ -63,7 +63,7 @@ export function ThemeCard({
         <Badge
           variant="outline"
           className={
-            theme.confidence === "low" ? "border-inju/40 text-inju" : undefined
+            theme.confidence === "low" ? "border-review/40 bg-review-soft text-review" : undefined
           }
         >
           {CONFIDENCE_LABEL[theme.confidence]}
@@ -130,7 +130,7 @@ export function ThemeCard({
           ),
         )}
         {theme.sourceSegmentIds.length === 0 ? (
-          <span className="text-xs text-inju">근거 구간 없음</span>
+          <span className="text-xs font-medium text-review">근거 구간 없음</span>
         ) : null}
       </div>
 

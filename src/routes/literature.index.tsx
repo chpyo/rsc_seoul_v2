@@ -90,11 +90,11 @@ function LiteratureIndex() {
                       <span>{lit.document_metadata?.literature_type || "연구보고서"}</span>
                     </div>
                     {lit.isOwner ? (
-                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
                         내 자료
                       </span>
                     ) : (
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                         {lit.author_name ? `${lit.author_name} 등록` : "공동자료"}
                       </span>
                     )}
