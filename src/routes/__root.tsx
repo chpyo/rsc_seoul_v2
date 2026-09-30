@@ -8,10 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/app-shell";
-import { PreviewHostBridge } from "@/components/preview-host-bridge";
-import { AuthProvider } from "@/lib/auth/provider";
-import { AuthProvider as FirebaseAuthProvider } from "@/lib/auth-context";
-
+import { AuthProvider } from "@/lib/auth-context";
 import { queryClient } from "@/lib/query-client";
 import { APP_DESCRIPTION, APP_NAME, APP_THEME_COLOR } from "@/lib/brand";
 import appCss from "../styles.css?url";
@@ -52,8 +49,8 @@ export const Route = createRootRoute({
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },
-      { rel: "manifest", href: "/__grok/manifest.webmanifest" },
-      { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@500;600;700&display=swap",
@@ -66,22 +63,19 @@ export const Route = createRootRoute({
         <HeadContent />
       </head>
       <body>
-        <PreviewHostBridge />
         <ChunkRecoveryHandler />
         <AuthProvider>
-          <FirebaseAuthProvider>
-            <QueryClientProvider client={queryClient}>
-              <AppShell>
-                <Outlet />
-              </AppShell>
-              <Toaster
-                position="bottom-center"
-                toastOptions={{
-                  className: "font-sans",
-                }}
-              />
-            </QueryClientProvider>
-          </FirebaseAuthProvider>
+          <QueryClientProvider client={queryClient}>
+            <AppShell>
+              <Outlet />
+            </AppShell>
+            <Toaster
+              position="bottom-center"
+              toastOptions={{
+                className: "font-sans",
+              }}
+            />
+          </QueryClientProvider>
         </AuthProvider>
         <Scripts />
       </body>
