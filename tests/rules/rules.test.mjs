@@ -298,3 +298,62 @@ describe("Storage 문헌 원본", () => {
     );
   });
 });
+
+describe("검색 색인(chunks)", () => {
+  const chunk = (over = {}) => ({
+    owner_uid: "u_alice",
+    source_type: "session",
+    source_id: "s_conf",
+    project_id: "p_alice",
+    label: "S001",
+    segment_codes: ["S001"],
+    ts_start: "",
+    text: "x",
+    created_at: "t",
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      const db = c.firestore();
+      await setDoc(doc(db, "sessions", "s_conf"), {
+        owner_uid: "u_alice",
+        project_id: "p_alice",
+        status: "confirmed",
+        title: "확정본",
+      });
+      await setDoc(doc(db, "chunks", "c_alice"), chunk());
+    });
+  });
+
+  test("멤버는 읽고, 멤버가 아니면 읽지 못한다", async () => {
+    await assertSucceeds(getDocs(collection(fs("vera"), "chunks")));
+    await assertFails(getDocs(collection(outsider(), "chunks")));
+  });
+
+  test("확정된 본인 녹취만 색인한다", async () => {
+    await assertSucceeds(setDoc(doc(fs("alice"), "chunks", "c1"), chunk()));
+    // 확정 전 녹취
+    await assertFails(setDoc(doc(fs("alice"), "chunks", "c2"), chunk({ source_id: "s_alice" })));
+    // 남의 녹취
+    await assertFails(setDoc(doc(fs("bob"), "chunks", "c3"), chunk({ owner_uid: "u_bob" })));
+    await assertFails(setDoc(doc(fs("bob"), "chunks", "c4"), chunk()));
+  });
+
+  test("관리자는 원본 소유자 명의로만 색인한다", async () => {
+    await assertSucceeds(setDoc(doc(fs("admin"), "chunks", "c5"), chunk()));
+    await assertFails(setDoc(doc(fs("admin"), "chunks", "c6"), chunk({ owner_uid: "u_admin" })));
+  });
+
+  test("문헌 색인은 문헌 소유자 명의여야 한다", async () => {
+    const lit = chunk({ source_type: "literature", source_id: "l_alice", project_id: "" });
+    await assertSucceeds(setDoc(doc(fs("alice"), "chunks", "c7"), lit));
+    await assertFails(setDoc(doc(fs("bob"), "chunks", "c8"), { ...lit, owner_uid: "u_bob" }));
+  });
+
+  test("수정은 안 되고, 삭제는 소유자·관리자만", async () => {
+    await assertFails(updateDoc(doc(fs("alice"), "chunks", "c_alice"), { text: "y" }));
+    await assertFails(deleteDoc(doc(fs("bob"), "chunks", "c_alice")));
+    await assertSucceeds(deleteDoc(doc(fs("alice"), "chunks", "c_alice")));
+  });
+});

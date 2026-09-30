@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { firebaseAuthMiddleware, writerAuthMiddleware } from "@/lib/server/firebase-middleware";
 import { analyzeTranscript, rewriteMinutesFromThemes } from "@/lib/ai/analyze";
 import { chatWithConfirmedCases } from "@/lib/ai/chat";
-import type { ChatCaseContext, RelatedCase } from "@/lib/types";
+import type { ChatCaseContext, ChatLiteratureContext, RelatedCase } from "@/lib/types";
 import { synthesizeProject } from "@/lib/ai/cross";
 import type { CrossSummary } from "@/lib/types";
 
@@ -89,6 +89,7 @@ export const askProjectAssistant = createServerFn({ method: "POST" })
       projectTitle?: string;
       query: string;
       cases: ChatCaseContext[];
+      literatures?: ChatLiteratureContext[];
       ranked: RelatedCase[];
     }) => input,
   )

@@ -18,6 +18,11 @@
 - 서버 함수: `firebaseAuthMiddleware`(활성 멤버) / `writerAuthMiddleware`(연구원·관리자). context 의 `idToken` 으로 Firestore·Storage REST 를 사용자 권한으로 호출 — 서비스 계정 없음
 - 규칙을 바꾸면 `tests/rules/rules.test.mjs` 도 고치고 `npm run test:rules`
 
+## 검색 (B1)
+- 확정된 녹취·문헌은 `chunks` 컬렉션에 발언 묶음 단위(768차원 벡터)로 색인 (`src/lib/search/*`). 확정·등록 시 자동, 관리자 설정에서 재구축
+- 검색은 서버 함수 `vectorSearch` 가 사용자 토큰으로 Firestore REST `findNearest` 호출. 인덱스는 `firestore.indexes.json`
+- 챗봇 답변 근거 표기: 현장록 `〔C1·S012〕`, 문헌 `〔L1〕` (`ask-corpus.ts` 가 C1/L1 → 원본 매핑 제공)
+
 ## 규칙
 - AI 산출물 문체: 한국 공문서 개조식(1./□/○/-/※, `~함/~임`), 마크다운 `**` 금지, 근거 구간 코드(S001) 필수
 - 배포: Vercel Hobby — 요청 본문 4.5MB, 함수 최대 300초. 큰 파일은 Storage 경유(`src/lib/server/media.ts`), 긴 작업은 여러 호출로 분할. 절차는 `docs/deploy-vercel.md`

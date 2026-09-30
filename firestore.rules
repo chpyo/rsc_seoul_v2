@@ -192,6 +192,27 @@ service cloud.firestore {
       allow delete: if childDelete();
     }
 
+    // ---------- 검색 색인 (벡터 검색용 발언·문헌 묶음) ----------
+    // owner_uid 는 원본(확정된 녹취 또는 문헌)의 소유자와 같아야 하고, 한 번 쓰면 고치지 않는다.
+
+    function chunkSourceOk() {
+      let d = request.resource.data;
+      return (d.source_type == 'session'
+          && get(/databases/$(database)/documents/sessions/$(d.source_id)).data.owner_uid == d.owner_uid
+          && get(/databases/$(database)/documents/sessions/$(d.source_id)).data.status == 'confirmed')
+        || (d.source_type == 'literature'
+          && get(/databases/$(database)/documents/literatures/$(d.source_id)).data.uid == d.owner_uid);
+    }
+
+    match /chunks/{chunkId} {
+      allow read: if isMember();
+      allow create: if canWrite()
+        && (request.resource.data.owner_uid == uid() || isAdmin())
+        && chunkSourceOk();
+      allow update: if false;
+      allow delete: if canWrite() && (resource.data.owner_uid == uid() || isAdmin());
+    }
+
     // ---------- 문헌록 (소유자 필드: uid) ----------
 
     match /literatures/{literatureId} {

@@ -142,6 +142,8 @@ export type ChatGroundedReply = {
 };
 
 export type ChatCaseContext = {
+  /** 답변에서 근거를 가리키는 짧은 이름 (예: C1) */
+  ref?: string;
   sessionId: string;
   title: string;
   projectTitle: string;
@@ -150,6 +152,25 @@ export type ChatCaseContext = {
   minutesOverview: string;
   themes: Array<{ title: string; summary: string; quotes: Array<{ text: string; segmentId: string }> }>;
   facts: Array<{ label: string; value: string; segmentCode: string }>;
+  /** 질문과 가까운 발언 묶음 (벡터 검색) */
+  evidence?: Array<{ codes: string[]; text: string }>;
+};
+
+export type ChatLiteratureContext = {
+  /** 예: L1 */
+  ref: string;
+  literatureId: string;
+  title: string;
+  authors: string;
+  year: string;
+  excerpts: Array<{ label: string; text: string }>;
+};
+
+/** 답변 속 〔C1·S012〕, 〔L1〕 표기를 원본으로 연결하기 위한 정보 */
+export type Citation = {
+  type: "session" | "literature";
+  id: string;
+  title: string;
 };
 
 export type CrossSummary = {

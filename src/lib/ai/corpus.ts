@@ -1,3 +1,5 @@
+import type { ChunkHit } from "../search/chunking";
+
 export type CorpusDoc = {
   sessionId: string;
   sessionTitle: string;
@@ -19,6 +21,8 @@ export type CorpusHit = {
   headline: string;
   score: number;
   reason: string;
+  /** 벡터 검색으로 찾은 경우, 질문과 가까운 발언 묶음 */
+  evidence?: ChunkHit[];
 };
 
 export function tokenize(value: string): string[] {

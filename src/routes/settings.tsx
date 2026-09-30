@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { getStoredResearcher, setStoredResearcher } from "@/lib/researcher";
 import { MemberAdmin } from "@/components/member-admin";
+import { SearchIndexAdmin } from "@/components/search-index-admin";
 import { ROLE_LABELS } from "@/lib/membership";
 import { testEnvHandler } from "@/lib/server/sessions";
 
@@ -111,6 +112,8 @@ function Settings() {
         <AccessStatus />
 
         {isAdmin ? <MemberAdmin /> : null}
+
+        {isAdmin ? <SearchIndexAdmin /> : null}
       </div>
     </div>
   );

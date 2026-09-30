@@ -252,10 +252,14 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
         themes: checked.themes,
         unresolved: checked.unresolved,
       });
-      await confirmSession(uid, session.id);
+      return confirmSession(uid, session.id);
     },
-    onSuccess: async () => {
-      toast.success("자료실에 회의록을 올렸습니다.");
+    onSuccess: async (res) => {
+      if (res.indexed) toast.success("자료실에 회의록을 올렸습니다.");
+      else
+        toast.warning(
+          "자료실에 올렸지만 검색 색인을 만들지 못했습니다. 관리자가 설정에서 색인을 다시 만들 수 있습니다.",
+        );
       await refresh();
     },
     onError: (err: Error) => toast.error(err.message),

@@ -3,6 +3,7 @@ import { db } from "./firebase";
 import { canCurrentWrite, isCurrentAdmin } from "./membership";
 import type { LiteratureAnalysisResult } from "./types-literature";
 import { deleteLiteratureFile, type StoredLiteratureFile } from "./literature-files";
+import { deleteChunksFor, indexLiterature } from "./search/index-store";
 
 export type LiteratureDoc = LiteratureAnalysisResult & {
   id: string;
@@ -116,7 +117,14 @@ export async function saveLiterature(uid: string, payload: {
     ...analysisObj,
   };
   await setDoc(ref, docData);
-  return normalizeLiteratureDoc(ref.id, docData, uid);
+  const saved = normalizeLiteratureDoc(ref.id, docData, uid);
+  // 검색 색인. 실패해도 저장은 유지한다(관리자가 설정에서 다시 만들 수 있다).
+  try {
+    await indexLiterature(saved);
+  } catch (err) {
+    console.warn("[saveLiterature] 검색 색인 실패:", err);
+  }
+  return saved;
 }
 
 export async function getLiterature(id: string, currentUid?: string) {
@@ -147,6 +155,7 @@ export async function deleteLiterature(id: string, uid?: string) {
   if (!canCurrentWrite() || (data.uid !== uid && !isCurrentAdmin())) {
     throw new Error("문헌 삭제 권한이 없습니다.");
   }
+  await deleteChunksFor(id);
   await deleteDoc(doc(db, "literatures", id));
   if (data.source_storage_path) {
     await deleteLiteratureFile(String(data.source_storage_path)).catch(() => undefined);

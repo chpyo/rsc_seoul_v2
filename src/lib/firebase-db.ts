@@ -1,6 +1,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -14,7 +15,8 @@ import {
 import { db } from "./firebase";
 import { canCurrentWrite, isCurrentAdmin } from "./membership";
 import { buildCorpusText, rankCorpus, type CorpusDoc, type CorpusHit } from "./ai/corpus";
-import { runEmbedText } from "./ai/run";
+import { deleteChunksFor, indexSession } from "./search/index-store";
+import { evidenceReason, searchEvidence } from "./search/search";
 import { parseTranscript, serializeSegments } from "./parse-transcript";
 import {
   emptyCross,
@@ -850,22 +852,24 @@ export async function confirmSession(uid: string, id: string) {
     themes: detail.themes,
     facts: detail.facts,
   });
-  let embedding: number[] | null = null;
-  try {
-    embedding = await runEmbedText(corpusText, "RETRIEVAL_DOCUMENT");
-  } catch {
-    embedding = null;
-  }
   await updateDoc(doc(db, "sessions", id), {
     status: "confirmed",
     confirmed_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     corpus_text: corpusText,
     corpus_themes: detail.themes.map((t) => t.title),
-    corpus_embedding: embedding,
+    // 예전 방식의 문서 단위 임베딩(3072차원)은 chunks 색인으로 대체됐다.
+    corpus_embedding: deleteField(),
   });
   if (data.project_id) await refreshProjectStats(uid, String(data.project_id));
-  return { ok: true };
+  // 검색 색인은 확정 뒤에 만든다(규칙이 확정된 녹취만 색인을 허용). 실패해도 확정은 유지한다.
+  try {
+    await indexSession(detail);
+    return { ok: true, indexed: true };
+  } catch (err) {
+    console.warn("[confirmSession] 검색 색인 실패:", err);
+    return { ok: true, indexed: false };
+  }
 }
 
 export async function reopenSession(uid: string, id: string) {
@@ -874,8 +878,10 @@ export async function reopenSession(uid: string, id: string) {
   await updateDoc(doc(db, "sessions", id), {
     status: "analyzed",
     confirmed_at: null,
+    indexed_at: deleteField(),
     updated_at: new Date().toISOString(),
   });
+  await deleteChunksFor(id);
   if (data.project_id) await refreshProjectStats(uid, String(data.project_id));
   return { ok: true };
 }
@@ -885,6 +891,7 @@ export async function deleteSession(uid: string, id: string, skipProjectStatsRef
   if (!snap.exists()) return { ok: true };
   const data = requireOwner(snap.data(), uid);
   const audioPath = String(data.audio_storage_path ?? "");
+  await deleteChunksFor(id);
   await Promise.all([
     deleteSessionDocs("segments", id),
     deleteSessionDocs("themes", id),
@@ -1057,17 +1064,56 @@ export async function saveCrossSummary(_uid: string, projectId: string, summary:
   return { at: now };
 }
 
+/**
+ * 확정 회의록 검색. 발언 묶음 벡터 검색 결과를 회의 단위로 묶어 돌려준다.
+ * 벡터 검색을 쓸 수 없으면(키 없음·색인 준비 전) 키워드 검색으로 대신한다.
+ */
 export async function searchConfirmedCases(
-  _uid: string,
+  uid: string,
   searchQuery: string,
   opts?: { projectId?: string; limit?: number },
+): Promise<CorpusHit[]> {
+  const limit = opts?.limit ?? 5;
+  const found = await searchEvidence(searchQuery, {
+    projectId: opts?.projectId,
+    sessionLimit: 30,
+    literatureLimit: 0,
+  });
+  if (!found.ok) return searchConfirmedCasesLexical(searchQuery, opts?.projectId, limit);
+
+  const hits: CorpusHit[] = [];
+  for (const g of found.sessionGroups) {
+    if (hits.length >= limit) break;
+    const snap = await getDoc(doc(db, "sessions", g.sourceId));
+    if (!snap.exists()) continue;
+    const s = mapSessionSummary(snap.id, snap.data(), uid);
+    if (s.status !== "confirmed") continue;
+    hits.push({
+      sessionId: s.id,
+      sessionTitle: s.title,
+      projectId: s.projectId,
+      projectTitle: s.projectTitle,
+      sessionDate: s.sessionDate,
+      headline: s.headline,
+      score: g.bestDistance == null ? 1 / (1 + g.bestRank) : 1 - g.bestDistance,
+      reason: evidenceReason(g.hits),
+      evidence: g.hits,
+    });
+  }
+  return hits;
+}
+
+async function searchConfirmedCasesLexical(
+  searchQuery: string,
+  projectId: string | undefined,
+  limit: number,
 ): Promise<CorpusHit[]> {
   const snap = await getDocs(collection(db, "sessions"));
   const docs: CorpusDoc[] = [];
   for (const row of snap.docs) {
     const data = row.data();
     if (asStatus(data.status, String(data.headline ?? "")) !== "confirmed") continue;
-    if (opts?.projectId && String(data.project_id ?? "") !== opts.projectId) continue;
+    if (projectId && String(data.project_id ?? "") !== projectId) continue;
     const title = String(data.title ?? "");
     const headline = String(data.headline ?? "");
     const minutesOverview = String(data.minutes_overview ?? data.minutesOverview ?? "");
@@ -1076,9 +1122,6 @@ export async function searchConfirmedCases(
     const corpusText =
       String(data.corpus_text ?? "").trim() ||
       buildCorpusText({ title, headline, minutesOverview, tags: tagLabels });
-    const embedding = Array.isArray(data.corpus_embedding)
-      ? data.corpus_embedding.map((n) => Number(n)).filter((n) => Number.isFinite(n))
-      : null;
     docs.push({
       sessionId: row.id,
       sessionTitle: title,
@@ -1088,16 +1131,10 @@ export async function searchConfirmedCases(
       headline,
       corpusText,
       themeTitles,
-      embedding: embedding && embedding.length > 0 ? embedding : null,
+      embedding: null,
     });
   }
-  let queryEmbedding: number[] | null = null;
-  try {
-    queryEmbedding = await runEmbedText(searchQuery, "RETRIEVAL_QUERY");
-  } catch {
-    queryEmbedding = null;
-  }
-  return rankCorpus(searchQuery, docs, queryEmbedding, opts?.limit ?? 5);
+  return rankCorpus(searchQuery, docs, null, limit);
 }
 
 export async function loadChatCaseContext(uid: string, sessionIds: string[]): Promise<ChatCaseContext[]> {

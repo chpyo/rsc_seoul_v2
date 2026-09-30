@@ -1,7 +1,6 @@
 import { analyzeTranscript, rewriteMinutesFromThemes } from "@/lib/ai/analyze";
 import { chatWithConfirmedCases } from "@/lib/ai/chat";
 import { synthesizeProject } from "@/lib/ai/cross";
-import { embedText } from "@/lib/server/embed";
 import {
   analyzeSession,
   askProjectAssistant,
@@ -143,19 +142,6 @@ export async function runCrossSummary(payload: Parameters<typeof synthesizeProje
       error: failMessage(err, "교차 요약에 실패했습니다."),
       summary: null as CrossSummary | null,
     };
-  }
-}
-
-export async function runEmbedText(
-  text: string,
-  taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY",
-): Promise<number[] | null> {
-  try {
-    const res = await embedText({ data: { text, taskType } });
-    if (res.embedding) return res.embedding;
-    return null;
-  } catch (err) {
-    return null;
   }
 }
 

@@ -43,10 +43,11 @@ GOOGLE_APPLICATION_CREDENTIALS=~/keys/rsc-seoul-admin.json npm run migrate:membe
 
 ```bash
 npx firebase-tools@15 login
-npx firebase-tools@15 deploy --only firestore:rules,storage
+npx firebase-tools@15 deploy --only firestore:rules,firestore:indexes,storage
 ```
 
 - Storage 규칙이 Firestore 의 멤버 문서를 읽으므로, 처음 배포할 때 **"Storage 가 Firestore 에 접근하도록 권한 부여"** 확인 창이 뜨면 승인합니다.
+- `firestore:indexes` 는 검색용 벡터 인덱스(`firestore.indexes.json`)를 만듭니다. 만들어지는 데 몇 분 걸리며, 그동안 자료실 검색은 키워드 방식으로 동작합니다.
 - 이 시점부터 멤버가 아닌 계정은 기록을 읽을 수 없습니다. 2단계에서 등록된 사용자는 기존 앱으로도 계속 쓸 수 있습니다.
 
 ## 4. Vercel 프로젝트 만들기
@@ -76,7 +77,12 @@ npx firebase-tools@15 deploy --only firestore:rules,storage
    `https://<앱 도메인>/*`, `http://localhost:3000/*`, `https://<프로젝트>.firebaseapp.com/*`.
    이 키로 Gemini(Generative Language API)가 호출되지 않도록 API 제한도 확인하세요.
 
-## 6. 배포 후 점검
+## 6. 검색 색인 만들기
+
+관리자 계정으로 로그인 → 설정 → **검색 색인** → "검색 색인 다시 만들기".
+기존 확정본과 문헌을 모두 색인합니다(자료 수에 따라 몇 분). 이후 새로 확정하거나 등록한 자료는 자동으로 색인됩니다.
+
+## 7. 배포 후 점검
 
 - [ ] 관리자 계정으로 로그인 → 헤더에 "관리자" 표시, 설정 화면에 멤버 관리가 보인다
 - [ ] 설정 → "AI 서버: 연결됨"
@@ -86,7 +92,8 @@ npx firebase-tools@15 deploy --only firestore:rules,storage
 - [ ] 음성 업로드(짧은 것, 40분 이상 긴 것) → 원본이 세션 화면에서 재생되고 전사가 이어진다
 - [ ] 문헌록 PDF 업로드 → 분석 → "원문 PDF" 열기
 - [ ] 열람자 계정 → 새 녹취·새 문헌 버튼이 없다
+- [ ] 자료실 질문 → 관련 회의·문헌 카드와 〔C1·S012〕 형식 근거가 붙은 답변
 
-## 7. 기존 배포 정리
+## 8. 기존 배포 정리
 
 새 배포가 확인되면 AI Studio(Cloud Run) 등 예전 배포를 내립니다.
