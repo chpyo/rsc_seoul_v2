@@ -36,6 +36,7 @@ import {
 import { parseTranscript, uniqueSpeakers } from "@/lib/parse-transcript";
 import { SessionAudioPlayer } from "@/components/session-audio";
 import { CodeChip, EvidenceProvider, EvidenceText } from "@/components/evidence";
+import { EvidenceStrip } from "@/components/evidence-strip";
 import { tsToSeconds } from "@/lib/evidence/parse";
 import { reviewTotal, sessionStage } from "@/lib/session-stage";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -150,6 +151,9 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
   const [evidenceConfirmOpen, setEvidenceConfirmOpen] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
   const [flashCode, setFlashCode] = useState<string | null>(null);
+  const [hoverThemeId, setHoverThemeId] = useState<string | null>(null);
+  const [cursorCode, setCursorCode] = useState<string | null>(null);
+  const [showKeys, setShowKeys] = useState(false);
   const [audioAvailable, setAudioAvailable] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { seg: initialSeg } = Route.useSearch();
@@ -478,6 +482,82 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
       ? session.segments.filter((s) => selected.sourceSegmentIds.includes(s.code))
       : session.segments;
 
+  const hovered = draft.themes.find((t) => t.id === hoverThemeId) ?? null;
+  const selectedCodes = useMemo(() => new Set(selected?.sourceSegmentIds ?? []), [selected]);
+  const hoveredCodes = useMemo(() => new Set(hovered?.sourceSegmentIds ?? []), [hovered]);
+  const linkedCodes = useMemo(
+    () => new Set(draft.themes.flatMap((t) => t.sourceSegmentIds)),
+    [draft.themes],
+  );
+  const allCodes = useMemo(() => session.segments.map((sg) => sg.code), [session.segments]);
+
+  // 키보드: J/K 구간 이동, L 선택 주제에 근거 연결, Space 재생·정지, ? 도움말, Esc 해제
+  const keyHandler = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  keyHandler.current = (e: KeyboardEvent) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("input, textarea, select, [contenteditable='true'], [role='dialog']"))
+      return;
+    const codes = visibleSegments.map((sg) => sg.code);
+    const idx = cursorCode ? codes.indexOf(cursorCode) : -1;
+    const moveTo = (i: number) => {
+      const code = codes[Math.max(0, Math.min(codes.length - 1, i))];
+      if (!code) return;
+      setCursorCode(code);
+      setMobilePane("transcript");
+      document.getElementById(`seg-${code}`)?.scrollIntoView({ block: "nearest" });
+    };
+    // 한글 자판 상태(ㅓ ㅏ ㅣ)에서도 같은 키로 동작
+    switch (e.key) {
+      case "j":
+      case "J":
+      case "ㅓ":
+        e.preventDefault();
+        moveTo(idx + 1);
+        break;
+      case "k":
+      case "K":
+      case "ㅏ":
+        e.preventDefault();
+        moveTo(idx < 0 ? 0 : idx - 1);
+        break;
+      case "l":
+      case "L":
+      case "ㅣ":
+        if (cursorCode && selected && !locked) {
+          e.preventDefault();
+          toggleSource(cursorCode);
+        }
+        break;
+      case " ": {
+        const el = audioRef.current;
+        if (!audioAvailable || !el) break;
+        e.preventDefault();
+        if (!el.paused) {
+          el.pause();
+          break;
+        }
+        const seg = session.segments.find((sg) => sg.code === cursorCode);
+        const sec = seg?.ts ? tsToSeconds(seg.ts) : null;
+        if (sec != null) playAt(sec);
+        else void el.play().catch(() => undefined);
+        break;
+      }
+      case "?":
+        setShowKeys((v) => !v);
+        break;
+      case "Escape":
+        setCursorCode(null);
+        setShowKeys(false);
+        break;
+    }
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keyHandler.current(e);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const jumpTo = useCallback((code: string) => {
     setSourceOnly(false);
     setMobilePane("transcript");
@@ -801,17 +881,59 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
                   주제를 고른 뒤 구간을 누르면 근거로 연결됩니다.
                 </p>
               </div>
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  checked={sourceOnly}
-                  onChange={(e) => setSourceOnly(e.target.checked)}
-                  disabled={!selected}
-                />
-                근거만
-              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  className="hidden text-xs text-muted-foreground hover:text-foreground lg:inline"
+                  onClick={() => setShowKeys((v) => !v)}
+                  aria-expanded={showKeys}
+                >
+                  단축키 <kbd className="rounded border border-border px-1 font-mono">?</kbd>
+                </button>
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    checked={sourceOnly}
+                    onChange={(e) => setSourceOnly(e.target.checked)}
+                    disabled={!selected}
+                  />
+                  근거만
+                </label>
+              </div>
             </div>
+            {showKeys ? (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-b border-border bg-muted/30 px-4 py-3 text-xs">
+                {[
+                  ["J / K", "다음 · 이전 구간"],
+                  ["L", "고른 구간을 선택한 주제의 근거로 연결·해제"],
+                  ["Space", "고른 구간부터 듣기 · 멈춤"],
+                  ["Esc", "구간 선택 해제"],
+                  ["?", "이 도움말 열기·닫기"],
+                ].map(([k, v]) => (
+                  <div key={k} className="contents">
+                    <dt>
+                      <kbd className="rounded border border-border bg-card px-1.5 font-mono">
+                        {k}
+                      </kbd>
+                    </dt>
+                    <dd className="text-muted-foreground">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+            {session.segments.length > 0 ? (
+              <div className="border-b border-border px-4 py-2.5">
+                <EvidenceStrip
+                  codes={allCodes}
+                  linked={linkedCodes}
+                  selected={selectedCodes}
+                  hovered={hoveredCodes}
+                  cursor={cursorCode}
+                  onJump={jumpTo}
+                />
+              </div>
+            ) : null}
             {session.audio ? (
               <SessionAudioPlayer
                 audio={session.audio}
@@ -882,10 +1004,19 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
                       ) : null}
                       <button
                         type="button"
-                        onClick={() => toggleSource(seg.code)}
+                        onClick={() => {
+                          setCursorCode(seg.code);
+                          toggleSource(seg.code);
+                        }}
                         className={cn(
                           "w-full rounded-lg px-3 py-3 text-left transition-colors",
-                          active ? "bg-highlight" : "hover:bg-muted/70",
+                          active
+                            ? "bg-highlight"
+                            : hoveredCodes.has(seg.code)
+                              ? "bg-highlight/50"
+                              : "hover:bg-muted/70",
+                          cursorCode === seg.code &&
+                            "outline-2 outline-offset-1 outline-primary/60 outline-solid",
                           flashCode === seg.code && "ring-2 ring-primary ring-offset-1",
                         )}
                       >
@@ -947,7 +1078,13 @@ function SessionEditor({ session, uid }: { session: SessionDetail; uid: string }
                   </p>
                 ) : (
                   draft.themes.map((theme) => (
-                    <div key={theme.id} id={`theme-${theme.id}`} className="scroll-mt-24">
+                    <div
+                      key={theme.id}
+                      id={`theme-${theme.id}`}
+                      className="scroll-mt-24"
+                      onMouseEnter={() => setHoverThemeId(theme.id)}
+                      onMouseLeave={() => setHoverThemeId((cur) => (cur === theme.id ? null : cur))}
+                    >
                       <ThemeCard
                         theme={theme}
                         selected={theme.id === selectedThemeId}
