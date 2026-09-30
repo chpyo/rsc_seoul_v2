@@ -65,7 +65,7 @@ export const Route = createFileRoute("/projects/$projectId")({
 });
 
 function ProjectPage() {
-  const { user } = useAuth();
+  const { user, canWrite } = useAuth();
   const uid = user?.uid;
   const { projectId } = Route.useParams();
   const qc = useQueryClient();
@@ -223,20 +223,24 @@ const combinedTagCounts = (() => {
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <ChatModal projectId={projectId} projectTitle={p.title || ""} />
-            <Button asChild>
-              <Link to="/upload" search={{ projectId }}>
-                녹취 추가
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => setDeleteConfirmOpen(true)}
-              disabled={deleteMut.isPending || !uid}
-              title="프로젝트 삭제"
-              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            {canWrite ? (
+              <Button asChild>
+                <Link to="/upload" search={{ projectId }}>
+                  녹취 추가
+                </Link>
+              </Button>
+            ) : null}
+            {"canDelete" in p && p.canDelete ? (
+              <Button
+                variant="ghost"
+                onClick={() => setDeleteConfirmOpen(true)}
+                disabled={deleteMut.isPending || !uid}
+                title="프로젝트 삭제"
+                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -322,7 +326,7 @@ const combinedTagCounts = (() => {
                     <Button
                       variant="outline"
                       onClick={() => summaryMut.mutate()}
-                      disabled={summaryMut.isPending}
+                      disabled={summaryMut.isPending || !canWrite}
                     >
                       <ScanText className="size-4" />
                       {cross?.crossSummary ? "다시 정리" : "교차 요약"}

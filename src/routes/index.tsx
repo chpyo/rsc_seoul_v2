@@ -28,7 +28,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { user } = useAuth();
+  const { user, canWrite } = useAuth();
   const uid = user?.uid;
   const qc = useQueryClient();
   const [sessionScope, setSessionScope] = useState<"all" | "mine">("all");
@@ -64,18 +64,20 @@ function Home() {
             <span>{sessionScope === "all" ? "전체 기록" : "내 기록"} {sessions.length} (확정 {confirmed} / 초안 {drafts})</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setOpen(true)}>
-            <Plus className="size-4" />
-            프로젝트
-          </Button>
-          <Button asChild>
-            <Link to="/upload" search={{ projectId: undefined }}>
-              새 녹취
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-        </div>
+        {canWrite ? (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setOpen(true)}>
+              <Plus className="size-4" />
+              프로젝트
+            </Button>
+            <Button asChild>
+              <Link to="/upload" search={{ projectId: undefined }}>
+                새 녹취
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       <section className="flex flex-col gap-3">
@@ -86,9 +88,11 @@ function Home() {
         {projects.length === 0 ? (
           <EmptyState
             action={
-              <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-                프로젝트 만들기
-              </Button>
+              canWrite ? (
+                <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+                  프로젝트 만들기
+                </Button>
+              ) : undefined
             }
           >
             아직 프로젝트가 없습니다. 연도·유형으로 조사 단위를 나누세요.
@@ -160,11 +164,13 @@ function Home() {
         {sessions.length === 0 ? (
           <EmptyState
             action={
-              <Button asChild variant="outline" size="sm">
-                <Link to="/upload" search={{ projectId: undefined }}>
-                  새 녹취
-                </Link>
-              </Button>
+              canWrite ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/upload" search={{ projectId: undefined }}>
+                    새 녹취
+                  </Link>
+                </Button>
+              ) : undefined
             }
           >
             {sessionScope === "mine"

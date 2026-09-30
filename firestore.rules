@@ -1,89 +1,206 @@
 rules_version = '2';
 
+// 현장록 Firestore 보안 규칙
+//
+// 공유 모델: 승인된 멤버(members/{uid}, active == true)는 모든 기록을 읽을 수 있다.
+// 쓰기는 연구원·관리자만, 수정·삭제는 작성자 본인 또는 관리자만 가능하다.
+//   admin      모든 기록 수정·삭제, 멤버·초대 관리
+//   researcher 기록 작성, 본인 기록 수정·삭제
+//   viewer     읽기만
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAuthenticated() {
+
+    // ---------- 공통 ----------
+
+    function signedIn() {
       return request.auth != null;
     }
 
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function memberPath() {
+      return /databases/$(database)/documents/members/$(request.auth.uid);
+    }
+
+    function isMember() {
+      return signedIn() && exists(memberPath()) && get(memberPath()).data.active == true;
+    }
+
+    function role() {
+      return get(memberPath()).data.role;
+    }
+
     function isAdmin() {
-      return isAuthenticated() &&
-        request.auth.token.email != null &&
-        (request.auth.token.email == 'chpyo25@gmail.com' || request.auth.token.email == 'vyckdghks@gmail.com');
+      return isMember() && role() == 'admin';
     }
 
-    // Helper function for user data isolation on mutation (with admin override)
-    function isOwner() {
-      return isAuthenticated() && (
-        isAdmin() ||
-        resource.data.get('owner_uid', '') == '' ||
-        resource.data.get('owner_uid', '') == request.auth.uid
-      );
-    }
-    
-    function canCreate(uid) {
-      return isAuthenticated() && (
-        isAdmin() ||
-        uid == '' ||
-        request.auth.uid == uid
-      );
+    function canWrite() {
+      return isMember() && role() in ['admin', 'researcher'];
     }
 
-    match /projects/{documentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isOwner();
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
     }
-    
-    match /sessions/{documentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isOwner();
+
+    function unchanged(field) {
+      return !changedKeys().hasAny([field]);
     }
-    
-    match /segments/{documentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isOwner();
+
+    function verifiedEmail() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true;
     }
-    
-    match /themes/{documentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isOwner();
+
+    function tokenEmail() {
+      return request.auth.token.email.lower();
     }
-    
-    match /excerpts/{documentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isOwner();
+
+    function invitePath() {
+      return /databases/$(database)/documents/invites/$(tokenEmail());
     }
-    
-    match /facts/{documentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isOwner();
+
+    // ---------- 멤버·초대 ----------
+
+    match /members/{memberId} {
+      allow get: if signedIn() && (memberId == uid() || isAdmin());
+      allow list: if isAdmin();
+
+      // 초대받은 본인만, 초대에 적힌 역할 그대로 멤버 문서를 만들 수 있다.
+      allow create: if verifiedEmail()
+        && memberId == uid()
+        && exists(invitePath())
+        && request.resource.data.keys().hasOnly(
+             ['uid', 'email', 'display_name', 'role', 'active', 'invited_by', 'joined_at'])
+        && request.resource.data.uid == uid()
+        && request.resource.data.email == tokenEmail()
+        && request.resource.data.role == get(invitePath()).data.role
+        && request.resource.data.active == true;
+
+      // 관리자는 다른 멤버의 역할·활성 여부만 바꾼다. 자기 자신은 바꿀 수 없다(잠금 방지).
+      allow update: if isAdmin()
+        && memberId != uid()
+        && changedKeys().hasOnly(['role', 'active'])
+        && request.resource.data.role in ['admin', 'researcher', 'viewer']
+        && request.resource.data.active is bool;
+      allow delete: if isAdmin() && memberId != uid();
     }
-    
-    match /tags/{documentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isOwner();
+
+    match /invites/{email} {
+      allow get: if isAdmin() || (verifiedEmail() && email == tokenEmail());
+      allow list: if isAdmin();
+      allow create, update: if isAdmin()
+        && email == email.lower()
+        && request.resource.data.keys().hasOnly(['email', 'role', 'invited_by', 'invited_at'])
+        && request.resource.data.email == email
+        && request.resource.data.role in ['admin', 'researcher', 'viewer'];
+      // 초대받은 본인은 멤버 문서를 만든 뒤 초대를 정리할 수 있다.
+      allow delete: if isAdmin()
+        || (verifiedEmail() && email == tokenEmail() && exists(memberPath()));
     }
-    
-    match /literatures/{documentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (
-        isAdmin() ||
-        resource.data.get('uid', '') == '' ||
-        resource.data.get('uid', '') == request.auth.uid
+
+    // ---------- 프로젝트 ----------
+
+    match /projects/{projectId} {
+      allow read: if isMember();
+      allow create: if canWrite() && request.resource.data.owner_uid == uid();
+      allow update: if canWrite() && (
+        ((resource.data.owner_uid == uid() || isAdmin()) && unchanged('owner_uid'))
+        // 집계·교차 요약은 프로젝트에 녹취를 올린 누구나 갱신한다.
+        || changedKeys().hasOnly(
+             ['sessionCount', 'confirmedCount', 'draftCount', 'cross_summary', 'cross_summary_at'])
       );
+      allow delete: if canWrite() && (resource.data.owner_uid == uid() || isAdmin());
     }
-    
-    match /test/{documentId} {
-      allow read: if true;
+
+    // ---------- 녹취(세션) ----------
+
+    function projectOwner(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data.owner_uid;
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isMember();
+      allow create: if canWrite() && request.resource.data.owner_uid == uid();
+      allow update: if canWrite() && (
+        ((resource.data.owner_uid == uid() || isAdmin()) && unchanged('owner_uid'))
+        // 프로젝트 이름을 바꾸면 프로젝트 소유자가 소속 녹취의 표시명을 함께 고친다.
+        || (changedKeys().hasOnly(['projectTitle'])
+            && projectOwner(resource.data.project_id) == uid())
+      );
+      allow delete: if canWrite() && (resource.data.owner_uid == uid() || isAdmin());
+    }
+
+    // ---------- 세션 하위 문서 (구간·주제·인용·사실·태그) ----------
+    // owner_uid 는 항상 상위 세션의 owner_uid 와 같다.
+
+    function sessionOwner(sessionId) {
+      return get(/databases/$(database)/documents/sessions/$(sessionId)).data.owner_uid;
+    }
+
+    function childCreate() {
+      return canWrite()
+        && (sessionOwner(request.resource.data.session_id) == uid() || isAdmin())
+        && request.resource.data.owner_uid == sessionOwner(request.resource.data.session_id);
+    }
+
+    function childUpdate() {
+      return canWrite()
+        && (resource.data.owner_uid == uid() || isAdmin())
+        && unchanged('owner_uid')
+        && unchanged('session_id');
+    }
+
+    function childDelete() {
+      return canWrite() && (resource.data.owner_uid == uid() || isAdmin());
+    }
+
+    match /segments/{docId} {
+      allow read: if isMember();
+      allow create: if childCreate();
+      allow update: if childUpdate();
+      allow delete: if childDelete();
+    }
+
+    match /themes/{docId} {
+      allow read: if isMember();
+      allow create: if childCreate();
+      allow update: if childUpdate();
+      allow delete: if childDelete();
+    }
+
+    match /excerpts/{docId} {
+      allow read: if isMember();
+      allow create: if childCreate();
+      allow update: if childUpdate();
+      allow delete: if childDelete();
+    }
+
+    match /facts/{docId} {
+      allow read: if isMember();
+      allow create: if childCreate();
+      allow update: if childUpdate();
+      allow delete: if childDelete();
+    }
+
+    match /tags/{docId} {
+      allow read: if isMember();
+      allow create: if childCreate();
+      allow update: if childUpdate();
+      allow delete: if childDelete();
+    }
+
+    // ---------- 문헌록 (소유자 필드: uid) ----------
+
+    match /literatures/{literatureId} {
+      allow read: if isMember();
+      allow create: if canWrite() && request.resource.data.uid == uid();
+      allow update: if canWrite()
+        && (resource.data.uid == uid() || isAdmin())
+        && unchanged('uid');
+      allow delete: if canWrite() && (resource.data.uid == uid() || isAdmin());
     }
   }
 }

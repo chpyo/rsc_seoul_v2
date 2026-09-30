@@ -130,7 +130,7 @@ function TagMultiSelectDropdown({
 }
 
 function LibraryPage() {
-  const { user } = useAuth();
+  const { user, canWrite } = useAuth();
   const uid = user?.uid;
   const [q, setQ] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -462,7 +462,7 @@ function LibraryPage() {
             {cases.length === 0 ? (
                 <EmptyState
                 action={
-                    filtered ? undefined : (
+                    filtered || !canWrite ? undefined : (
                     <Button asChild variant="outline" size="sm">
                         <Link to="/upload" search={{ projectId: undefined }}>
                         새 녹취

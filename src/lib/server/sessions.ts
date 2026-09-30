@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { firebaseAuthMiddleware } from "@/lib/server/firebase-middleware";
+import { firebaseAuthMiddleware, writerAuthMiddleware } from "@/lib/server/firebase-middleware";
 import { analyzeTranscript, rewriteMinutesFromThemes } from "@/lib/ai/analyze";
 import { chatWithConfirmedCases } from "@/lib/ai/chat";
 import type { ChatCaseContext, RelatedCase } from "@/lib/types";
@@ -17,7 +17,7 @@ function caughtMessage(err: unknown, fallback: string): string {
 }
 
 export const analyzeSession = createServerFn({ method: "POST" })
-  .middleware([firebaseAuthMiddleware])
+  .middleware([writerAuthMiddleware])
   .validator((input: { meta: Parameters<typeof analyzeTranscript>[0]["meta"]; segments: Parameters<typeof analyzeTranscript>[0]["segments"] }) => input)
   .handler(async ({ data }) => {
     try {
@@ -32,7 +32,7 @@ export const analyzeSession = createServerFn({ method: "POST" })
   });
 
 export const rewriteMinutes = createServerFn({ method: "POST" })
-  .middleware([firebaseAuthMiddleware])
+  .middleware([writerAuthMiddleware])
   .validator(
     (input: {
       meta: {
@@ -56,7 +56,7 @@ export const rewriteMinutes = createServerFn({ method: "POST" })
   });
 
 export const generateCrossSummary = createServerFn({ method: "POST" })
-  .middleware([firebaseAuthMiddleware])
+  .middleware([writerAuthMiddleware])
   .validator(
     (input: {
       projectTitle: string;
@@ -101,17 +101,8 @@ export const askProjectAssistant = createServerFn({ method: "POST" })
     }
   });
 
-export const generateAnswerHandler = createServerFn({ method: "POST" })
-  .middleware([firebaseAuthMiddleware])
-  .validator((input: { prompt: string; system: string }) => input)
-  .handler(async ({ data }) => {
-    const { geminiText } = await import("@/lib/ai/gemini");
-    const result = await geminiText({ user: data.prompt, system: data.system });
-    return result;
-  });
-
-
 export const testEnvHandler = createServerFn({ method: "POST" })
+  .middleware([firebaseAuthMiddleware])
   .handler(async () => {
     return {
       configured: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY),

@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createServerFn } from "@tanstack/react-start";
-import { firebaseAuthMiddleware } from "@/lib/server/firebase-middleware";
+import { writerAuthMiddleware } from "@/lib/server/firebase-middleware";
 import { geminiTranscribeMedia } from "@/lib/ai/gemini";
 import { isOwnedAudioPath, normalizeAudioMime } from "@/lib/audio-path";
-import { downloadUserAudio } from "@/lib/server/firebase-admin";
+import { downloadStorageObject } from "@/lib/server/storage.server";
 
 const CHUNKS_BASE_DIR = "/tmp/stt-chunks";
 
@@ -29,7 +29,7 @@ async function cleanupStaleChunks() {
 }
 
 export const uploadAudioChunk = createServerFn({ method: "POST" })
-  .middleware([firebaseAuthMiddleware])
+  .middleware([writerAuthMiddleware])
   .validator((input: unknown) => {
     if (input instanceof FormData) {
       const file = input.get("file");
@@ -115,7 +115,7 @@ export const uploadAudioChunk = createServerFn({ method: "POST" })
   });
 
 export const transcribeAudio = createServerFn({ method: "POST" })
-  .middleware([firebaseAuthMiddleware])
+  .middleware([writerAuthMiddleware])
   .validator((input: unknown) => {
     if (input instanceof FormData) {
       const file = input.get("file");
@@ -149,7 +149,7 @@ export const transcribeAudio = createServerFn({ method: "POST" })
         if (!isOwnedAudioPath(uid, data.storagePath)) {
           return { ok: false as const, error: "오디오 경로가 올바르지 않습니다." };
         }
-        const bytes = await downloadUserAudio(data.storagePath);
+        const bytes = await downloadStorageObject(data.storagePath, context.idToken);
         const copy = new Uint8Array(bytes.byteLength);
         copy.set(bytes);
         blob = new Blob([copy], { type: mimeType });

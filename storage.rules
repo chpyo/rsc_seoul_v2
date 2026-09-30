@@ -1,9 +1,33 @@
 rules_version = '2';
+
+// 현장록 Storage 보안 규칙
+// 멤버 여부·역할은 Firestore members/{uid} 문서로 판단한다 (Firestore 교차 서비스 규칙).
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function memberPath() {
+      return /databases/(default)/documents/members/$(request.auth.uid);
+    }
+
+    function isMember() {
+      return request.auth != null
+        && firestore.exists(memberPath())
+        && firestore.get(memberPath()).data.active == true;
+    }
+
+    function isAdmin() {
+      return isMember() && firestore.get(memberPath()).data.role == 'admin';
+    }
+
+    function canWrite() {
+      return isMember() && firestore.get(memberPath()).data.role in ['admin', 'researcher'];
+    }
+
+    // 녹음 원본: 본인과 관리자만 접근
     match /users/{uid}/audio/{audioId}/{fileName} {
-      allow read, delete: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null
+      allow read: if isMember() && (request.auth.uid == uid || isAdmin());
+      allow delete: if canWrite() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if canWrite()
         && request.auth.uid == uid
         && request.resource.size < 200 * 1024 * 1024
         && request.resource.contentType.matches('audio/.*');

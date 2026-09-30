@@ -11,8 +11,8 @@ import {
   writeBatch,
   type DocumentData,
 } from "firebase/firestore";
-import { auth, db } from "./firebase";
-import { isUserAdmin } from "./admin";
+import { db } from "./firebase";
+import { canCurrentWrite, isCurrentAdmin } from "./membership";
 import { buildCorpusText, rankCorpus, type CorpusDoc, type CorpusHit } from "./ai/corpus";
 import { runEmbedText } from "./ai/run";
 import { parseTranscript, serializeSegments } from "./parse-transcript";
@@ -55,10 +55,9 @@ function asStatus(raw: unknown, headline = ""): SessionStatus {
 
 function requireOwner(data: DocumentData | undefined, uid: string): DocumentData {
   if (!data) throw new Error("찾을 수 없습니다.");
-  const currentEmail = auth.currentUser?.email;
-  const isAdmin = isUserAdmin(currentEmail);
+  if (!canCurrentWrite()) throw new Error("열람 권한만 있는 계정입니다.");
   const owner = data.owner_uid;
-  if (owner && owner !== uid && !isAdmin) {
+  if (owner !== uid && !isCurrentAdmin()) {
     throw new Error("수정 및 삭제 권한이 없습니다.");
   }
   return data;
@@ -98,14 +97,15 @@ async function commitChunks(ops: BatchOp[]) {
 
 function mapProject(id: string, data: DocumentData, currentUid?: string): Project {
   const ownerUid = String(data.owner_uid ?? "");
-  const isAdmin = isUserAdmin(auth.currentUser?.email);
+  const isAdmin = isCurrentAdmin();
   const isOwner = currentUid ? ownerUid === currentUid : false;
+  const canModify = (isOwner && canCurrentWrite()) || isAdmin;
   return {
     id,
     ownerUid,
     isOwner,
-    canEdit: isOwner || isAdmin,
-    canDelete: isOwner || isAdmin,
+    canEdit: canModify,
+    canDelete: canModify,
     title: String(data.title ?? ""),
     year: typeof data.year === "number" ? data.year : data.year ? Number(data.year) : null,
     kind: String(data.kind ?? "심층조사"),
@@ -146,8 +146,9 @@ function audioFields(audio?: SessionAudio | null) {
 function mapSessionSummary(id: string, data: DocumentData, currentUid?: string): SessionSummary {
   const headline = String(data.headline ?? "");
   const ownerUid = String(data.owner_uid ?? "");
-  const isAdmin = isUserAdmin(auth.currentUser?.email);
+  const isAdmin = isCurrentAdmin();
   const isOwner = currentUid ? ownerUid === currentUid : false;
+  const canModify = (isOwner && canCurrentWrite()) || isAdmin;
   return {
     id,
     projectId: String(data.project_id ?? ""),
@@ -161,8 +162,8 @@ function mapSessionSummary(id: string, data: DocumentData, currentUid?: string):
     researcher: String(data.researcher ?? ""),
     ownerUid,
     isOwner,
-    canEdit: isOwner || isAdmin,
-    canDelete: isOwner || isAdmin,
+    canEdit: canModify,
+    canDelete: canModify,
     status: asStatus(data.status, headline),
     headline,
     minutesOverview: String(data.minutes_overview ?? data.minutesOverview ?? ""),
@@ -291,6 +292,9 @@ export async function deleteProject(uid: string, id: string) {
   if (!snap.exists()) return { ok: true };
   requireOwner(snap.data(), uid);
   const sessions = await listSessions(uid, id);
+  if (!isCurrentAdmin() && sessions.some((s) => s.ownerUid !== uid)) {
+    throw new Error("다른 연구원의 녹취가 들어 있는 프로젝트는 관리자만 삭제할 수 있습니다.");
+  }
   for (const session of sessions) {
     await deleteSession(uid, session.id, true);
   }

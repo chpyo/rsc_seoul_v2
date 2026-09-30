@@ -1,13 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  Settings as SettingsIcon,
-  ShieldCheck,
-  UserCheck,
-  Database,
-  Lock,
-  Trash2,
-  CheckCircle2,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Settings as SettingsIcon, ShieldCheck, UserCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -17,19 +10,25 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { getStoredResearcher, setStoredResearcher } from "@/lib/researcher";
+import { MemberAdmin } from "@/components/member-admin";
+import { ROLE_LABELS } from "@/lib/membership";
+import { testEnvHandler } from "@/lib/server/sessions";
 
 export const Route = createFileRoute("/settings")({
   component: Settings,
 });
 
 function Settings() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [researcher, setResearcher] = useState("");
 
   useEffect(() => {
-    // Purge any legacy client-stored API key to prevent browser exposure
-    if (localStorage.getItem("GEMINI_API_KEY")) {
+    // 예전 버전이 브라우저에 남긴 키·토큰 정리
+    try {
       localStorage.removeItem("GEMINI_API_KEY");
+      localStorage.removeItem("fb_token");
+    } catch {
+      /* ignore */
     }
     setResearcher(getStoredResearcher());
   }, []);
@@ -40,25 +39,15 @@ function Settings() {
     toast.success("기본 연구원 설정이 저장되었습니다.");
   };
 
-  const handleClearLocalCache = () => {
-    try {
-      localStorage.removeItem("GEMINI_API_KEY");
-      localStorage.removeItem("fb_token");
-      toast.success("로컬 임시 캐시 및 보안 데이터가 정리되었습니다.");
-    } catch {
-      toast.error("캐시 초기화 중 오류가 발생했습니다.");
-    }
-  };
-
   return (
     <div className="mx-auto max-w-3xl py-8 px-4 sm:px-6">
       <div className="mb-8">
         <h1 className="flex items-center gap-2.5 font-serif text-3xl font-semibold tracking-tight text-foreground">
           <SettingsIcon className="size-7 text-primary" />
-          시스템 설정 및 보안
+          설정
         </h1>
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-          서울지역 인적자원개발위원회(서울인자위) 인터뷰·문헌 분석 시스템의 사용자 프로필 및 배포 보안 상태를 관리합니다.
+          연구원 프로필과 계정 권한을 확인합니다. 관리자는 멤버를 초대하고 역할을 정합니다.
         </p>
       </div>
 
@@ -115,77 +104,63 @@ function Settings() {
           </form>
         </div>
 
-        {/* Section 2: Security & Deployment Status */}
-        <div className="rounded-lg border border-border bg-card p-6 shadow-xs">
-          <div className="flex items-center justify-between border-b border-border pb-4 mb-5">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="size-5 text-emerald-600 dark:text-emerald-400" />
-              <h2 className="text-lg font-semibold text-foreground">배포 및 보안 현황</h2>
-            </div>
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="size-4" />
-              보안 표준 준수
-            </span>
-          </div>
+        <AccessStatus />
 
-          <div className="flex flex-col gap-4">
-            {/* Security Item 1: API Key Protection */}
-            <div className="flex items-start gap-3.5 rounded-md border border-border bg-muted/20 p-4">
-              <Lock className="size-5 text-primary shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Gemini AI API 키 완전 격리 보호
-                  </h3>
-                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
-                    서버 프록시 가동 중
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  API 키는 브라우저나 UI 화면에 노출되지 않고, 서버 환경 변수(<code>GEMINI_API_KEY</code>)로 격리되어 백엔드 프록시를 통해서만 암호화 통신됩니다.
-                </p>
-              </div>
-            </div>
+        {isAdmin ? <MemberAdmin /> : null}
+      </div>
+    </div>
+  );
+}
 
-            {/* Security Item 2: Database RBAC */}
-            <div className="flex items-start gap-3.5 rounded-md border border-border bg-muted/20 p-4">
-              <Database className="size-5 text-primary shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Firestore 데이터 접근 제어 (RBAC)
-                  </h3>
-                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
-                    보안 규칙 활성화
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  연구원 본인이 등록한 녹취 파일, 전사 텍스트, 문헌 분석 결과물만 조회·수정할 수 있도록 데이터 소유자 격리 규칙이 엄격히 적용되어 있습니다.
-                </p>
-              </div>
-            </div>
+function StatusRow({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-md border border-border bg-muted/20 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+        <Badge variant="outline">{value}</Badge>
+      </div>
+      <p className="text-xs leading-relaxed text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
 
-            {/* Security Item 3: Local Storage Cleanup */}
-            <div className="mt-2 pt-4 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-medium text-foreground">브라우저 보안 캐시 관리</h3>
-                <p className="text-xs text-muted-foreground">
-                  이전 브라우징 세션에 남아있을 수 있는 임시 인증 토큰 및 캐시 데이터를 정리합니다.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive shrink-0"
-                onClick={handleClearLocalCache}
-              >
-                <Trash2 className="size-3.5 mr-1.5" />
-                보안 캐시 정리
-              </Button>
-            </div>
-          </div>
-        </div>
+function AccessStatus() {
+  const { role } = useAuth();
+  const env = useQuery({
+    queryKey: ["server-env"],
+    queryFn: () => testEnvHandler(),
+    staleTime: 60_000,
+  });
+
+  const aiValue = env.isLoading ? "확인 중" : env.data?.configured ? "연결됨" : "키 없음";
+  const aiDetail = env.data?.configured
+    ? "Gemini 호출은 서버에서만 이뤄지며 API 키는 브라우저로 전달되지 않습니다."
+    : "서버 환경 변수 GEMINI_API_KEY 가 없어 분석·전사·챗봇을 쓸 수 없습니다. 관리자에게 알려 주세요.";
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-6 shadow-xs">
+      <div className="mb-5 flex items-center gap-2 border-b border-border pb-4">
+        <ShieldCheck className="size-5 text-primary" />
+        <h2 className="text-lg font-semibold text-foreground">권한 및 연결 상태</h2>
+      </div>
+      <div className="flex flex-col gap-3">
+        <StatusRow
+          label="내 권한"
+          value={role ? ROLE_LABELS[role] : "-"}
+          detail={
+            role === "admin"
+              ? "모든 기록을 수정·삭제하고 멤버를 관리할 수 있습니다."
+              : role === "researcher"
+                ? "기록을 올리고 본인이 올린 기록을 수정·삭제할 수 있습니다."
+                : "모든 기록을 읽을 수 있습니다. 작성과 수정은 할 수 없습니다."
+          }
+        />
+        <StatusRow
+          label="데이터 공유 범위"
+          value="팀 공유"
+          detail="승인된 멤버만 기록을 볼 수 있고, 수정·삭제는 작성자 본인과 관리자만 할 수 있습니다. 녹음 원본은 올린 사람과 관리자만 들을 수 있습니다."
+        />
+        <StatusRow label="AI 서버" value={aiValue} detail={aiDetail} />
       </div>
     </div>
   );

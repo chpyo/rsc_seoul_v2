@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { firebaseAuthMiddleware } from "@/lib/server/firebase-middleware";
+import { writerAuthMiddleware } from "@/lib/server/firebase-middleware";
 import { analyzeLiterature } from "@/lib/ai/literature/analyze";
 
 export const analyzeLiteratureHandler = createServerFn({ method: "POST" })
-  .middleware([firebaseAuthMiddleware])
+  .middleware([writerAuthMiddleware])
   .validator((input: { text: string; focusQuestions?: string }) => input)
   .handler(async ({ data }) => {
     try {
@@ -19,7 +19,7 @@ export const analyzeLiteratureHandler = createServerFn({ method: "POST" })
   });
 
 export const analyzeLiteratureWithFileHandler = createServerFn({ method: "POST" })
-  .middleware([firebaseAuthMiddleware])
+  .middleware([writerAuthMiddleware])
   .validator((input: unknown) => {
     if (input instanceof FormData) return input;
     throw new Error("오디오 또는 문서 데이터 형식이 올바르지 않습니다.");

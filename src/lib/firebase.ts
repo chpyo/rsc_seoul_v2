@@ -6,7 +6,6 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signOut as firebaseSignOut,
-  onIdTokenChanged,
 } from "firebase/auth";
 import { getFirestore, initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -41,29 +40,7 @@ export const db = (() => {
 
 export const storage = getStorage(app);
 
-let memToken: string | null = null;
-
 if (typeof window !== "undefined") {
-  onIdTokenChanged(auth, async (user) => {
-    if (user) {
-      const token = await user.getIdToken();
-      document.cookie = `fb_token=${token}; path=/; max-age=3600; SameSite=None; Secure`;
-      memToken = token;
-      try {
-        localStorage.setItem("fb_token", token);
-      } catch {
-        /* ignore */
-      }
-    } else {
-      document.cookie = `fb_token=; path=/; max-age=0; SameSite=None; Secure`;
-      memToken = null;
-      try {
-        localStorage.removeItem("fb_token");
-      } catch {
-        /* ignore */
-      }
-    }
-  });
   void getRedirectResult(auth).catch(() => undefined);
 }
 
@@ -100,31 +77,4 @@ export async function loginWithGoogle() {
 
 export async function logout() {
   await firebaseSignOut(auth);
-}
-
-if (typeof window !== "undefined") {
-  const originalFetch = window.fetch;
-  try {
-    Object.defineProperty(window, "fetch", {
-      value: async (input: RequestInfo | URL, init?: RequestInit) => {
-        init = init || {};
-        const headers = new Headers(init.headers);
-        let token = memToken;
-        if (!token) {
-          try {
-            token = localStorage.getItem("fb_token");
-          } catch {
-            token = null;
-          }
-        }
-        if (token) headers.set("Authorization", `Bearer ${token}`);
-        init.headers = headers;
-        return originalFetch(input, init);
-      },
-      writable: true,
-      configurable: true,
-    });
-  } catch {
-    /* fetch already patched */
-  }
 }

@@ -13,7 +13,7 @@ export const Route = createFileRoute("/literature/")({
 });
 
 function LiteratureIndex() {
-  const { user } = useAuth();
+  const { user, canWrite } = useAuth();
   const [scope, setScope] = useState<"all" | "mine">("all");
   
   const { data: literatures = [] } = useQuery({
@@ -32,12 +32,14 @@ function LiteratureIndex() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button asChild>
-            <Link to="/literature/upload">
-              <Plus className="mr-2 size-4" />
-              새 문헌 등록
-            </Link>
-          </Button>
+          {canWrite ? (
+            <Button asChild>
+              <Link to="/literature/upload">
+                <Plus className="mr-2 size-4" />
+                새 문헌 등록
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </div>
 

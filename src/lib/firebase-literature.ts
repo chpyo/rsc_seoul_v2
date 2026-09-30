@@ -1,6 +1,6 @@
 import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, setDoc, where } from "firebase/firestore";
-import { auth, db } from "./firebase";
-import { isUserAdmin } from "./admin";
+import { db } from "./firebase";
+import { canCurrentWrite, isCurrentAdmin } from "./membership";
 import type { LiteratureAnalysisResult } from "./types-literature";
 
 export type LiteratureDoc = LiteratureAnalysisResult & {
@@ -17,8 +17,9 @@ export type LiteratureDoc = LiteratureAnalysisResult & {
 
 export function normalizeLiteratureDoc(id: string, rawData: any, currentUid?: string): LiteratureDoc {
   const data = rawData || {};
-  const isAdmin = isUserAdmin(auth.currentUser?.email);
+  const isAdmin = isCurrentAdmin();
   const isOwner = currentUid ? data.uid === currentUid : false;
+  const canModify = (isOwner && canCurrentWrite()) || isAdmin;
 
   const analysis = data.analysis || {};
   const docMeta = data.document_metadata || analysis.document_metadata;
@@ -70,8 +71,8 @@ export function normalizeLiteratureDoc(id: string, rawData: any, currentUid?: st
     uid: data.uid || "",
     author_name: data.author_name || "연구위원",
     isOwner,
-    canEdit: isOwner || isAdmin,
-    canDelete: isOwner || isAdmin,
+    canEdit: canModify,
+    canDelete: canModify,
     created_at: data.created_at || new Date().toISOString(),
     source_text: data.source_text || "",
     focus_questions: data.focus_questions || "",
@@ -130,8 +131,7 @@ export async function deleteLiterature(id: string, uid?: string) {
   const snap = await getDoc(doc(db, "literatures", id));
   if (!snap.exists()) throw new Error("문헌을 찾을 수 없습니다.");
   const data = snap.data();
-  const isAdmin = isUserAdmin(auth.currentUser?.email);
-  if (data.uid !== uid && !isAdmin) {
+  if (!canCurrentWrite() || (data.uid !== uid && !isCurrentAdmin())) {
     throw new Error("문헌 삭제 권한이 없습니다.");
   }
   await deleteDoc(doc(db, "literatures", id));

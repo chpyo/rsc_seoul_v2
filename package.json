@@ -15,7 +15,9 @@
     "test": "node --experimental-strip-types --test 'src/**/*.test.ts'",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "backup:firestore": "node scripts/ops/backup-firestore.mjs"
+    "backup:firestore": "node scripts/ops/backup-firestore.mjs",
+    "test:rules": "firebase emulators:exec --only firestore,storage \"node --test tests/rules/\"",
+    "migrate:membership": "node scripts/ops/migrate-membership.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
@@ -44,6 +46,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

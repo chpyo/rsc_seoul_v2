@@ -12,13 +12,14 @@ import { analyzeLiteratureHandler, analyzeLiteratureWithFileHandler } from "@/li
 import { saveLiterature } from "@/lib/firebase-literature";
 import { getStoredResearcher } from "@/lib/researcher";
 import { useAuth } from "@/lib/auth-context";
+import { ReadOnlyNotice } from "@/components/read-only-notice";
 
 export const Route = createFileRoute("/literature/upload")({
   component: LiteratureUpload,
 });
 
 function LiteratureUpload() {
-  const { user } = useAuth();
+  const { user, canWrite } = useAuth();
   const qc = useQueryClient();
   
   const [activeTab, setActiveTab] = useState<"file" | "text">("file");
@@ -106,6 +107,8 @@ function LiteratureUpload() {
   const isSubmitDisabled = mutation.isPending || 
     (activeTab === "file" && !file) || 
     (activeTab === "text" && !text.trim());
+
+  if (!canWrite) return <ReadOnlyNotice />;
 
   return (
     <div className="mx-auto max-w-2xl">

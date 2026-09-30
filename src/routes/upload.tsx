@@ -25,6 +25,7 @@ import { getStoredResearcher, setStoredResearcher } from "@/lib/researcher";
 import { listProjects, createSession } from "@/lib/firebase-db";
 import { SESSION_KINDS, type SessionAudio } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
+import { ReadOnlyNotice } from "@/components/read-only-notice";
 import { padCode } from "@/lib/utils";
 
 export const Route = createFileRoute("/upload")({
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/upload")({
 });
 
 function UploadPage() {
-  const { user } = useAuth();
+  const { user, canWrite } = useAuth();
   const uid = user?.uid;
   const qc = useQueryClient();
   const { projectId: qProject } = Route.useSearch();
@@ -369,6 +370,8 @@ function UploadPage() {
     !!title.trim() &&
     audioPhase !== "uploading" &&
     (remapped.length > 0 || !!audio);
+
+  if (!canWrite) return <ReadOnlyNotice />;
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">

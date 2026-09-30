@@ -1,42 +1,26 @@
 import "./polyfill.ts";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getCookie, getRequestHeader } from "@tanstack/react-start/server";
 import firebaseConfig from "../../../firebase-applet-config.json" with { type: "json" };
 
-const apps = getApps();
-
-if (!apps.length) {
-  initializeApp({
-    projectId: firebaseConfig.projectId,
-    storageBucket: firebaseConfig.storageBucket,
-  });
+// ID 토큰 검증에는 프로젝트 ID만 있으면 된다(공개 인증서 사용). 서비스 계정 키는 쓰지 않는다.
+if (!getApps().length) {
+  initializeApp({ projectId: firebaseConfig.projectId });
 }
 
 export const adminAuth = getAuth();
 
-export async function downloadUserAudio(path: string): Promise<Uint8Array> {
-  const { getStorage } = await import("firebase-admin/storage");
-  const bucket = getStorage().bucket(firebaseConfig.storageBucket);
-  const [buf] = await bucket.file(path).download();
-  return new Uint8Array(buf);
-}
+export type VerifiedUser = { uid: string; email: string | null };
 
-export async function requireAuth(bearerToken?: string): Promise<string> {
-  let idToken = bearerToken || getCookie("fb_token");
-  
-  const authHeader = getRequestHeader('authorization') || getRequestHeader('Authorization');
-  if (!idToken && authHeader && authHeader.startsWith("Bearer ")) {
-    idToken = authHeader.substring(7);
-  }
-  if (!idToken) {
+export async function requireAuth(bearerToken?: string): Promise<VerifiedUser> {
+  if (!bearerToken) {
     throw new Error("Unauthorized: missing authentication token");
   }
   try {
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    return decodedToken.uid;
-  } catch (error: any) {
-    const msg = error?.message || String(error);
+    const decoded = await adminAuth.verifyIdToken(bearerToken);
+    return { uid: decoded.uid, email: decoded.email ?? null };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.error("[requireAuth] verifyIdToken failed:", msg);
     throw new Error(`Unauthorized: ${msg}`);
   }
