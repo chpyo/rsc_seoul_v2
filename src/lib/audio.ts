@@ -1,6 +1,5 @@
 import {
   deleteObject,
-  getBytes,
   getDownloadURL,
   ref,
   uploadBytesResumable,
@@ -11,7 +10,6 @@ import type { SessionAudio } from "./types";
 import { newId } from "./utils";
 
 export {
-  AUDIO_INLINE_MAX_BYTES,
   audioStoragePath,
   formatAudioBytes,
   formatDurationSec,
@@ -56,11 +54,6 @@ export async function uploadUserAudio(
 
 export async function getAudioDownloadUrl(path: string): Promise<string> {
   return getDownloadURL(ref(storage, path));
-}
-
-export async function getAudioBlob(path: string, mimeType: string): Promise<Blob> {
-  const bytes = await getBytes(ref(storage, path));
-  return new Blob([bytes], { type: normalizeAudioMime(mimeType) });
 }
 
 export async function deleteUserAudio(path: string): Promise<void> {

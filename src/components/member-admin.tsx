@@ -149,7 +149,9 @@ export function MemberAdmin() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
                       {m.displayName || m.email}
-                      {self ? <span className="ml-1 text-xs text-muted-foreground">(나)</span> : null}
+                      {self ? (
+                        <span className="ml-1 text-xs text-muted-foreground">(나)</span>
+                      ) : null}
                     </p>
                     <p className="truncate font-mono text-xs text-muted-foreground">{m.email}</p>
                   </div>
@@ -157,7 +159,9 @@ export function MemberAdmin() {
                     <NativeSelect
                       value={m.role}
                       disabled={self || memberMut.isPending}
-                      onChange={(e) => memberMut.mutate({ uid: m.uid, role: e.target.value as Role })}
+                      onChange={(e) =>
+                        memberMut.mutate({ uid: m.uid, role: e.target.value as Role })
+                      }
                       className="h-9 w-28"
                       aria-label={`${m.email} 역할`}
                     >

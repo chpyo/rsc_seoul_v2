@@ -1,5 +1,3 @@
-export const AUDIO_INLINE_MAX_BYTES = 12 * 1024 * 1024;
-
 export function normalizeAudioMime(mime: string, filename?: string): string {
   if (filename) {
     const ext = filename.split(".").pop()?.toLowerCase();

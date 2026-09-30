@@ -75,7 +75,11 @@ function Settings() {
                 id="user-display"
                 type="text"
                 disabled
-                value={user ? `${user.displayName || "연구위원"} (${user.email || "인증됨"})` : "미로그인"}
+                value={
+                  user
+                    ? `${user.displayName || "연구위원"} (${user.email || "인증됨"})`
+                    : "미로그인"
+                }
                 className="bg-muted/40 text-muted-foreground"
               />
             </div>

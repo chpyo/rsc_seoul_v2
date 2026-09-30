@@ -1,78 +1,52 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { writerAuthMiddleware } from "@/lib/server/firebase-middleware";
 import { analyzeLiterature } from "@/lib/ai/literature/analyze";
 
+function message(err: unknown) {
+  return err instanceof Error ? err.message : "문헌 분석 중 오류가 발생했습니다.";
+}
+
+/** 붙여넣은 텍스트, 또는 브라우저에서 추출한 DOCX·HWPX·TXT 본문 분석. */
 export const analyzeLiteratureHandler = createServerFn({ method: "POST" })
   .middleware([writerAuthMiddleware])
-  .validator((input: { text: string; focusQuestions?: string }) => input)
+  .validator(
+    z.object({
+      text: z.string().min(1).max(1_000_000, "텍스트가 너무 깁니다 (최대 100만 자)."),
+      focusQuestions: z.string().max(2000).optional(),
+    }),
+  )
   .handler(async ({ data }) => {
     try {
       const literature = await analyzeLiterature(data);
       return { ok: true as const, literature };
     } catch (err) {
-      return { 
-        ok: false as const, 
-        error: err instanceof Error ? err.message : "문헌 분석 중 오류가 발생했습니다.",
-        literature: null
-      };
+      console.error("[analyzeLiteratureHandler]", err);
+      return { ok: false as const, error: message(err), literature: null };
     }
   });
 
-export const analyzeLiteratureWithFileHandler = createServerFn({ method: "POST" })
+/** prepareGeminiFile 로 올려 둔 PDF 분석. */
+export const analyzeLiteratureFile = createServerFn({ method: "POST" })
   .middleware([writerAuthMiddleware])
-  .validator((input: unknown) => {
-    if (input instanceof FormData) return input;
-    throw new Error("오디오 또는 문서 데이터 형식이 올바르지 않습니다.");
-  })
+  .validator(
+    z.object({
+      file: z.object({
+        uri: z.string().url().startsWith("https://generativelanguage.googleapis.com/"),
+        mimeType: z.string().min(1).max(100),
+      }),
+      focusQuestions: z.string().max(2000).optional(),
+    }),
+  )
   .handler(async ({ data }) => {
     try {
-      if (!data) throw new Error("전송된 데이터가 없습니다.");
-      const rawFile = data.get("file");
-      const file = rawFile instanceof Blob ? rawFile : null;
-      let text = (data.get("text") as string | null) || undefined;
-      const focusQuestions = (data.get("focusQuestions") as string | null) || undefined;
-      
-      let inlineData: { mimeType: string; data: string } | undefined;
-      
-      if (file) {
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const fileName = (file as { name?: string }).name || "";
-        let mimeType = file.type;
-        if (!mimeType) {
-          if (fileName.endsWith(".pdf")) mimeType = "application/pdf";
-          else if (fileName.endsWith(".txt")) mimeType = "text/plain";
-          else if (fileName.endsWith(".md")) mimeType = "text/markdown";
-          else if (fileName.endsWith(".csv")) mimeType = "text/csv";
-          else mimeType = "application/pdf";
-        }
-
-        if (mimeType.startsWith("text/")) {
-          const fileTextContent = buffer.toString("utf-8");
-          text = text ? `${text}\n\n${fileTextContent}` : fileTextContent;
-        } else {
-          inlineData = {
-            mimeType,
-            data: buffer.toString("base64"),
-          };
-        }
-      }
-
-      console.log("Analyzing literature with inlineData size:", inlineData?.data.length || 0, "text length:", text?.length || 0);
-
       const literature = await analyzeLiterature({
-        text,
-        focusQuestions,
-        inlineData,
+        focusQuestions: data.focusQuestions,
+        fileData: { fileUri: data.file.uri, mimeType: data.file.mimeType },
       });
-
       return { ok: true as const, literature };
     } catch (err) {
-      console.error("Error in analyzeLiteratureWithFileHandler:", err);
-      return { 
-        ok: false as const, 
-        error: err instanceof Error ? err.message : "문헌 분석 중 알 수 없는 오류가 발생했습니다.",
-        literature: null
-      };
+      console.error("[analyzeLiteratureFile]", err);
+      return { ok: false as const, error: message(err), literature: null };
     }
   });

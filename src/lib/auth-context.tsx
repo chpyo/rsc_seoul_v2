@@ -2,12 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { User } from "firebase/auth";
 import { toast } from "sonner";
 import { auth, loginWithGoogle, logout } from "./firebase";
-import {
-  resolveMembership,
-  setCurrentMember,
-  type Member,
-  type Role,
-} from "./membership";
+import { resolveMembership, setCurrentMember, type Member, type Role } from "./membership";
 
 /** loading: 로그인 또는 멤버십 확인 중 / signed-out / pending: 초대 없음 / inactive: 비활성 / member */
 export type MemberStatus = "loading" | "signed-out" | "pending" | "inactive" | "error" | "member";

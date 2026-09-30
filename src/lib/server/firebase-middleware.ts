@@ -1,7 +1,6 @@
 import { createMiddleware } from "@tanstack/react-start";
 
-export const NOT_MEMBER_MESSAGE =
-  "승인된 멤버만 사용할 수 있습니다. 관리자에게 초대를 요청하세요.";
+export const NOT_MEMBER_MESSAGE = "승인된 멤버만 사용할 수 있습니다. 관리자에게 초대를 요청하세요.";
 export const VIEWER_MESSAGE = "열람자 계정은 이 기능을 사용할 수 없습니다.";
 
 /**

@@ -24,7 +24,7 @@ const SYSTEM_INSTRUCTION = `# Role & Operational Persona
 export async function analyzeLiterature(input: {
   text?: string;
   focusQuestions?: string;
-  inlineData?: { mimeType: string; data: string };
+  fileData?: { fileUri: string; mimeType: string };
 }): Promise<LiteratureAnalysisResult> {
   const promptParts = [];
   if (input.focusQuestions) {
@@ -42,7 +42,7 @@ export async function analyzeLiterature(input: {
     system: SYSTEM_INSTRUCTION,
     schema: LITERATURE_ANALYSIS_SCHEMA,
     user: userPrompt,
-    inlineData: input.inlineData,
+    fileData: input.fileData,
     temperature: 0.1, // Keep it grounded
   });
 

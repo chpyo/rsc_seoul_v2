@@ -32,5 +32,15 @@ service firebase.storage {
         && request.resource.size < 200 * 1024 * 1024
         && request.resource.contentType.matches('audio/.*');
     }
+
+    // 문헌 원본(PDF): 팀 공유 자료이므로 멤버 누구나 열람, 올린 사람과 관리자만 삭제
+    match /users/{uid}/literature/{docId}/{fileName} {
+      allow read: if isMember();
+      allow delete: if canWrite() && (request.auth.uid == uid || isAdmin());
+      allow create: if canWrite()
+        && request.auth.uid == uid
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
   }
 }

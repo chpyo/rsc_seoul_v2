@@ -267,3 +267,34 @@ describe("Storage 녹음 원본", () => {
     await assertFails(getBytes(ref(ctx("bob").storage(), path)));
   });
 });
+
+describe("Storage 문헌 원본", () => {
+  const pdf = new Uint8Array([37, 80, 68, 70]);
+  const meta = { contentType: "application/pdf" };
+  const path = "users/u_alice/literature/lit1/report.pdf";
+
+  test("연구원은 본인 경로에 PDF만 올린다", async () => {
+    await assertSucceeds(uploadBytes(ref(ctx("alice").storage(), path), pdf, meta));
+    await assertFails(uploadBytes(ref(ctx("bob").storage(), path), pdf, meta));
+    await assertFails(
+      uploadBytes(ref(ctx("alice").storage(), "users/u_alice/literature/l/x.exe"), pdf, {
+        contentType: "application/octet-stream",
+      }),
+    );
+  });
+
+  test("멤버는 누구나 열람하고, 멤버가 아니면 못 본다", async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      await uploadBytes(ref(c.storage(), path), pdf, meta);
+    });
+    await assertSucceeds(getBytes(ref(ctx("vera").storage(), path)));
+    await assertFails(
+      getBytes(
+        ref(
+          env.authenticatedContext("u_out", { email: "out@example.com", email_verified: true }).storage(),
+          path,
+        ),
+      ),
+    );
+  });
+});

@@ -2,6 +2,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, setDoc, wh
 import { db } from "./firebase";
 import { canCurrentWrite, isCurrentAdmin } from "./membership";
 import type { LiteratureAnalysisResult } from "./types-literature";
+import { deleteLiteratureFile, type StoredLiteratureFile } from "./literature-files";
 
 export type LiteratureDoc = LiteratureAnalysisResult & {
   id: string;
@@ -13,6 +14,9 @@ export type LiteratureDoc = LiteratureAnalysisResult & {
   created_at: string;
   source_text: string;
   focus_questions?: string;
+  /** PDF 원본을 Storage 에 보관한 경우 */
+  source_storage_path?: string;
+  source_filename?: string;
 };
 
 export function normalizeLiteratureDoc(id: string, rawData: any, currentUid?: string): LiteratureDoc {
@@ -76,6 +80,8 @@ export function normalizeLiteratureDoc(id: string, rawData: any, currentUid?: st
     created_at: data.created_at || new Date().toISOString(),
     source_text: data.source_text || "",
     focus_questions: data.focus_questions || "",
+    source_storage_path: data.source_storage_path || "",
+    source_filename: data.source_filename || "",
     document_metadata: metaNormalized,
     methodological_framework: methodNormalized,
     question_driven_analysis: questionsNormalized,
@@ -89,6 +95,7 @@ export async function saveLiterature(uid: string, payload: {
   focus_questions?: string;
   analysis: LiteratureAnalysisResult;
   author_name?: string;
+  source_file?: StoredLiteratureFile | null;
 }) {
   const ref = doc(collection(db, "literatures"));
   const rawAnalysis = payload.analysis as any;
@@ -100,6 +107,12 @@ export async function saveLiterature(uid: string, payload: {
     created_at: new Date().toISOString(),
     source_text: payload.source_text,
     focus_questions: payload.focus_questions,
+    ...(payload.source_file
+      ? {
+          source_storage_path: payload.source_file.storagePath,
+          source_filename: payload.source_file.filename,
+        }
+      : {}),
     ...analysisObj,
   };
   await setDoc(ref, docData);
@@ -135,5 +148,8 @@ export async function deleteLiterature(id: string, uid?: string) {
     throw new Error("문헌 삭제 권한이 없습니다.");
   }
   await deleteDoc(doc(db, "literatures", id));
+  if (data.source_storage_path) {
+    await deleteLiteratureFile(String(data.source_storage_path)).catch(() => undefined);
+  }
   return { ok: true };
 }

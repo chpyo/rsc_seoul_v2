@@ -9,7 +9,7 @@ import {
   rewriteMinutes,
 } from "@/lib/server/sessions";
 import type { RelatedCase } from "@/lib/types";
-import { transcribeAudio, uploadAudioChunk } from "@/lib/server/stt";
+import { prepareGeminiFile, releaseGeminiFile, transcribeRange } from "@/lib/server/media";
 import type { CrossSummary } from "@/lib/types";
 
 function failMessage(err: unknown, fallback: string) {
@@ -105,7 +105,10 @@ export async function runAnalyzeSession(payload: Parameters<typeof analyzeTransc
     if (res.ok === false || res.error) {
       return { ok: false as const, error: failMessage(res.error, "분석 중 오류가 발생했습니다.") };
     }
-    return { ok: false as const, error: "AI 분석 결과 형식이 올바르지 않습니다. 다시 시도해 주세요." };
+    return {
+      ok: false as const,
+      error: "AI 분석 결과 형식이 올바르지 않습니다. 다시 시도해 주세요.",
+    };
   } catch (err) {
     return { ok: false as const, error: failMessage(err, "분석 중 오류가 발생했습니다.") };
   }
@@ -156,8 +159,11 @@ export async function runEmbedText(
   }
 }
 
-export async function runProjectAssistant(payload: Parameters<typeof chatWithConfirmedCases>[0]): Promise<
-  { ok: true; answer: string; relatedCases: RelatedCase[] } | { ok: false; error: string; answer: string; relatedCases: RelatedCase[] }
+export async function runProjectAssistant(
+  payload: Parameters<typeof chatWithConfirmedCases>[0],
+): Promise<
+  | { ok: true; answer: string; relatedCases: RelatedCase[] }
+  | { ok: false; error: string; answer: string; relatedCases: RelatedCase[] }
 > {
   const empty = { answer: "", relatedCases: [] as RelatedCase[] };
   try {
@@ -169,66 +175,85 @@ export async function runProjectAssistant(payload: Parameters<typeof chatWithCon
   }
 }
 
+/** 음성 전사 한 번에 처리하는 길이(초). Vercel 함수 300초 안에 끝나도록 잡는다. */
+export const TRANSCRIBE_PART_SEC = 15 * 60;
+/** 길이를 모를 때 최대 몇 구간까지 이어서 전사할지 (15분 × 24 = 6시간). */
+const MAX_PARTS_UNKNOWN = 24;
+const END_MARKER = "[[END]]";
+
+export type TranscribeProgress = {
+  stage: "preparing" | "transcribing";
+  part: number;
+  totalParts: number | null;
+};
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      last = err;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+  throw last;
+}
+
+/**
+ * Storage 에 올라간 음성을 전사한다.
+ * 서버가 파일을 Gemini 에 한 번 올린 뒤, 15분 단위로 나눠 차례로 전사하고 이어 붙인다.
+ */
 export async function runTranscribeAudio(
-  payload: {
-    blob: Blob;
-    mimeType: string;
-    filename?: string;
-    storagePath?: string;
-  },
-  onProgress?: (pct: number, stage: "uploading" | "transcribing") => void,
-) {
+  payload: { storagePath: string; mimeType: string; durationSec?: number | null },
+  onProgress?: (p: TranscribeProgress) => void,
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  let fileName: string | null = null;
   try {
-    const { blob, mimeType, filename } = payload;
-    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks (Cloud Run limit is 32MB)
-    const totalBytes = blob.size;
-    const totalChunks = Math.max(1, Math.ceil(totalBytes / CHUNK_SIZE));
-    const uploadId = `stt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    onProgress?.({ stage: "preparing", part: 0, totalParts: null });
+    const file = await prepareGeminiFile({
+      data: { storagePath: payload.storagePath, mimeType: payload.mimeType },
+    });
+    fileName = file.name;
 
-    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      const start = chunkIndex * CHUNK_SIZE;
-      const end = Math.min(totalBytes, start + CHUNK_SIZE);
-      const chunkBlob = blob.slice(start, end, mimeType);
+    const duration = payload.durationSec && payload.durationSec > 0 ? payload.durationSec : null;
+    const knownParts = duration ? Math.max(1, Math.ceil(duration / TRANSCRIBE_PART_SEC)) : null;
+    const texts: string[] = [];
 
-      const pct = Math.round(((chunkIndex + 1) / totalChunks) * 90);
-      onProgress?.(pct, chunkIndex === totalChunks - 1 ? "transcribing" : "uploading");
-
-      const formData = new FormData();
-      formData.append("file", chunkBlob, filename || "audio.m4a");
-      formData.append("uploadId", uploadId);
-      formData.append("chunkIndex", String(chunkIndex));
-      formData.append("totalChunks", String(totalChunks));
-      formData.append("filename", filename || "audio.m4a");
-      formData.append("mimeType", mimeType);
-
-      let res: { ok: boolean; done: boolean; text?: string; error?: string } | null = null;
-      let attempts = 0;
-      while (attempts < 3) {
-        try {
-          res = (await uploadAudioChunk({ data: formData })) as any;
-          break;
-        } catch (postErr) {
-          attempts++;
-          if (attempts >= 3) throw postErr;
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-      }
-
-      if (!res || !res.ok) {
-        return {
-          ok: false as const,
-          error: res?.error ? failMessage(res.error, "음성 인식에 실패했습니다.") : "오디오 전송에 실패했습니다.",
-        };
-      }
-
-      if (res.done) {
-        onProgress?.(100, "transcribing");
-        return { ok: true as const, text: res.text || "" };
+    if (knownParts === 1) {
+      onProgress?.({ stage: "transcribing", part: 1, totalParts: 1 });
+      const res = await withRetry(() =>
+        transcribeRange({ data: { file, startSec: null, endSec: null } }),
+      );
+      texts.push(res.text.replace(END_MARKER, "").trim());
+    } else {
+      const limit = knownParts ?? MAX_PARTS_UNKNOWN;
+      for (let i = 0; i < limit; i++) {
+        onProgress?.({ stage: "transcribing", part: i + 1, totalParts: knownParts });
+        const previousTail = texts.length ? texts[texts.length - 1].slice(-1500) : undefined;
+        const res = await withRetry(() =>
+          transcribeRange({
+            data: {
+              file,
+              startSec: i * TRANSCRIBE_PART_SEC,
+              endSec: (i + 1) * TRANSCRIBE_PART_SEC,
+              previousTail,
+            },
+          }),
+        );
+        const reachedEnd = res.text.includes(END_MARKER);
+        const text = res.text.replace(END_MARKER, "").trim();
+        if (text) texts.push(text);
+        if (reachedEnd || (!knownParts && !text)) break;
       }
     }
 
-    return { ok: false as const, error: "음성 전사 결과를 수신하지 못했습니다." };
+    const text = texts.join("\n\n").trim();
+    if (!text) return { ok: false, error: "음성에서 전사할 내용을 찾지 못했습니다." };
+    return { ok: true, text };
   } catch (err) {
-    return { ok: false as const, error: failMessage(err, "음성 인식에 실패했습니다.") };
+    return { ok: false, error: failMessage(err, "음성 인식에 실패했습니다.") };
+  } finally {
+    if (fileName) void releaseGeminiFile({ data: { name: fileName } }).catch(() => undefined);
   }
 }

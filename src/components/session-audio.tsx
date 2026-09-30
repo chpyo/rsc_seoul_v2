@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { runTranscribeAudio } from "@/lib/ai/run";
-import { formatAudioBytes, formatDurationSec, getAudioBlob, getAudioDownloadUrl } from "@/lib/audio";
+import { formatAudioBytes, formatDurationSec, getAudioDownloadUrl } from "@/lib/audio";
 import type { SessionAudio } from "@/lib/types";
 
 export function SessionAudioPlayer({
@@ -19,6 +19,7 @@ export function SessionAudioPlayer({
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,12 +37,20 @@ export function SessionAudioPlayer({
 
   const retryMut = useMutation({
     mutationFn: async () => {
-      const blob = await getAudioBlob(audio.storagePath, audio.mimeType);
-      const res = await runTranscribeAudio({
-        blob,
-        mimeType: audio.mimeType,
-        storagePath: audio.storagePath,
-      });
+      const res = await runTranscribeAudio(
+        {
+          storagePath: audio.storagePath,
+          mimeType: audio.mimeType,
+          durationSec: audio.durationSec,
+        },
+        (p) =>
+          setProgress(
+            p.stage === "preparing"
+              ? "원본 준비 중"
+              : `전사 중 ${p.part}${p.totalParts ? `/${p.totalParts}` : ""}`,
+          ),
+      );
+      setProgress(null);
       if (!res.ok) throw new Error(res.error);
       if (!onRetranscribe) return;
       await onRetranscribe(res.text);
@@ -51,6 +60,7 @@ export function SessionAudioPlayer({
       toast.success("원본을 다시 전사했습니다.");
     },
     onError: (err: Error) => {
+      setProgress(null);
       setConfirmOpen(false);
       toast.error(err.message);
     },
@@ -74,7 +84,7 @@ export function SessionAudioPlayer({
             onClick={() => setConfirmOpen(true)}
           >
             {retryMut.isPending ? <LoaderCircle className="size-4 animate-spin" /> : null}
-            원본 다시 전사
+            {retryMut.isPending && progress ? progress : "원본 다시 전사"}
           </Button>
         ) : null}
       </div>

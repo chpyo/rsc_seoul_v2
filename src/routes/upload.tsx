@@ -11,10 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { extractOfficeText } from "@/lib/office-text";
 import { runTranscribeAudio } from "@/lib/ai/run";
-import {
-  formatAudioBytes,
-  formatDurationSec,
-} from "@/lib/audio";
+import { formatAudioBytes, formatDurationSec, uploadUserAudio } from "@/lib/audio";
 import {
   parseTranscript,
   remapSpeakers,
@@ -27,6 +24,8 @@ import { SESSION_KINDS, type SessionAudio } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
 import { ReadOnlyNotice } from "@/components/read-only-notice";
 import { padCode } from "@/lib/utils";
+
+const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
 
 export const Route = createFileRoute("/upload")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -68,10 +67,12 @@ function UploadPage() {
   const timerRef = useRef<number | null>(null);
   const durationRef = useRef(0);
   const audioChunksRef = useRef<Blob[]>([]);
-  const pendingAudioRef = useRef<{ blob: Blob; filename: string; durationSec: number | null } | null>(
-    null,
-  );
-  
+  const pendingAudioRef = useRef<{
+    blob: Blob;
+    filename: string;
+    durationSec: number | null;
+  } | null>(null);
+
   // Waveform Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -95,10 +96,11 @@ function UploadPage() {
 
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
+  const [transcribeLabel, setTranscribeLabel] = useState("");
   const [audio, setAudio] = useState<SessionAudio | null>(null);
-  const [audioPhase, setAudioPhase] = useState<"idle" | "uploading" | "transcribing" | "ready" | "failed">(
-    "idle",
-  );
+  const [audioPhase, setAudioPhase] = useState<
+    "idle" | "uploading" | "transcribing" | "ready" | "failed"
+  >("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -146,13 +148,13 @@ function UploadPage() {
         stream.getTracks().forEach((track) => track.stop());
         setIsRecording(false);
         isRecordingRef.current = false;
-        
+
         if (timerRef.current) window.clearInterval(timerRef.current);
         if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         if (audioContextRef.current) {
           audioContextRef.current.close().catch(console.error);
         }
-        
+
         await handleAudioData(audioBlob, "녹음본.webm", durationRef.current);
       };
 
@@ -208,7 +210,6 @@ function UploadPage() {
         };
         drawWaveform();
       }
-
     } catch (err) {
       toast.error("마이크 권한을 허용해주세요.");
     }
@@ -221,7 +222,9 @@ function UploadPage() {
   };
 
   const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const m = Math.floor(seconds / 60)
+      .toString()
+      .padStart(2, "0");
     const s = (seconds % 60).toString().padStart(2, "0");
     return `${m}:${s}`;
   };
@@ -243,26 +246,23 @@ function UploadPage() {
     }
   }
 
-  async function transcribeStored(stored: SessionAudio | null, blob: Blob) {
-    setAudioPhase("uploading");
-    setUploadPct(0);
+  async function transcribeStored(stored: SessionAudio) {
+    setAudioPhase("transcribing");
+    setTranscribeLabel("원본 준비 중");
     setIsTranscribing(true);
     try {
       const res = await runTranscribeAudio(
         {
-          blob,
-          mimeType: stored?.mimeType || blob.type || "audio/webm",
-          filename: stored?.filename || filename || "audio.m4a",
-          storagePath: stored?.storagePath,
+          storagePath: stored.storagePath,
+          mimeType: stored.mimeType,
+          durationSec: stored.durationSec,
         },
-        (pct, stage) => {
-          setUploadPct(pct);
-          if (stage === "transcribing") {
-            setAudioPhase("transcribing");
-          } else {
-            setAudioPhase("uploading");
-          }
-        },
+        (p) =>
+          setTranscribeLabel(
+            p.stage === "preparing"
+              ? "원본 준비 중"
+              : `전사 중 ${p.part}${p.totalParts ? ` / ${p.totalParts} 구간` : " 구간"}`,
+          ),
       );
       if (!res.ok) {
         setAudioPhase("failed");
@@ -278,12 +278,21 @@ function UploadPage() {
       toast.error(err instanceof Error ? err.message : "음성을 처리하지 못했습니다.");
     } finally {
       setIsTranscribing(false);
+      setTranscribeLabel("");
     }
   }
 
-  async function handleAudioData(file: Blob | File, defaultName: string, durationSec?: number | null) {
+  async function handleAudioData(
+    file: Blob | File,
+    defaultName: string,
+    durationSec?: number | null,
+  ) {
     if (!uid) {
       toast.error("로그인이 필요합니다.");
+      return;
+    }
+    if (file.size >= MAX_AUDIO_BYTES) {
+      toast.error("음성 파일은 200MB보다 작아야 합니다.");
       return;
     }
     const name = (file as File).name || defaultName;
@@ -297,16 +306,25 @@ function UploadPage() {
     setSpeakerMap({});
     if (!title) setTitle(name.replace(/\.(mp3|wav|m4a|aac|webm)$/i, ""));
 
-    const sessionAudio: SessionAudio = {
-      storagePath: "",
-      mimeType,
-      filename: name,
-      sizeBytes: blob.size,
-      durationSec: duration ?? null,
-    };
-    setAudio(sessionAudio);
-    toast.info("Gemini AI를 통한 음성 전사를 시작합니다.");
-    await transcribeStored(sessionAudio, blob);
+    // 1) 원본을 Storage 에 보관
+    setAudio(null);
+    setAudioPhase("uploading");
+    setUploadPct(0);
+    let stored: SessionAudio;
+    try {
+      stored = await uploadUserAudio(uid, blob, name, {
+        durationSec: duration ?? null,
+        onProgress: setUploadPct,
+      });
+    } catch (err) {
+      setAudioPhase("failed");
+      toast.error(err instanceof Error ? err.message : "원본을 보관하지 못했습니다.");
+      return;
+    }
+    setAudio(stored);
+
+    // 2) 보관된 원본으로 전사
+    await transcribeStored(stored);
   }
 
   async function onFile(file: File) {
@@ -366,10 +384,7 @@ function UploadPage() {
   });
 
   const canSubmit =
-    !!projectId &&
-    !!title.trim() &&
-    audioPhase !== "uploading" &&
-    (remapped.length > 0 || !!audio);
+    !!projectId && !!title.trim() && audioPhase !== "uploading" && (remapped.length > 0 || !!audio);
 
   if (!canWrite) return <ReadOnlyNotice />;
 
@@ -378,7 +393,8 @@ function UploadPage() {
       <div>
         <h1 className="font-serif text-4xl font-semibold tracking-tight">녹취 올리기</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          화자와 구간이 나뉜 텍스트, 워드, 한글(HWPX)을 받습니다. 음성은 원본을 먼저 보관한 뒤 Gemini Files API로 전사합니다.
+          화자와 구간이 나뉜 텍스트, 워드, 한글(HWPX)을 받습니다. 음성은 원본을 먼저 보관한 뒤
+          Gemini Files API로 전사합니다.
         </p>
       </div>
 
@@ -400,12 +416,16 @@ function UploadPage() {
               dragOver ? "border-primary bg-highlight" : "border-border bg-muted/40"
             }`}
           >
-            {isTranscribing ? <LoaderCircle className="size-5 text-primary animate-spin" /> : <Upload className="size-5 text-primary" />}
+            {isTranscribing ? (
+              <LoaderCircle className="size-5 text-primary animate-spin" />
+            ) : (
+              <Upload className="size-5 text-primary" />
+            )}
             <span className="text-sm font-medium">
               {audioPhase === "uploading"
                 ? `원본 보관 중 ${uploadPct}%`
                 : isTranscribing
-                  ? "원본은 보관됐습니다. 전사하는 중..."
+                  ? `원본은 보관됐습니다. ${transcribeLabel || "전사하는 중"}...`
                   : reading
                     ? "파일을 읽는 중..."
                     : "파일을 놓거나 선택"}
@@ -430,7 +450,7 @@ function UploadPage() {
                   {audioPhase === "uploading"
                     ? `오디오 파일 전송 중 (${uploadPct}%)...`
                     : audioPhase === "transcribing"
-                      ? "Gemini AI 음성 인식(전사) 진행 중..."
+                      ? `Gemini 음성 전사 · ${transcribeLabel || "진행 중"}`
                       : audioPhase === "failed"
                         ? "음성 전사 실패"
                         : audioPhase === "ready"
@@ -454,17 +474,25 @@ function UploadPage() {
               {audio ? (
                 <p className="mt-1 text-xs text-muted-foreground">
                   {audio.filename}
-                  {formatDurationSec(audio.durationSec) ? ` · ${formatDurationSec(audio.durationSec)}` : ""}
+                  {formatDurationSec(audio.durationSec)
+                    ? ` · ${formatDurationSec(audio.durationSec)}`
+                    : ""}
                   {audio.sizeBytes ? ` · ${formatAudioBytes(audio.sizeBytes)}` : ""}
                 </p>
               ) : null}
-              {previewUrl ? <audio className="mt-2 w-full" controls src={previewUrl} preload="metadata" /> : null}
+              {previewUrl ? (
+                <audio className="mt-2 w-full" controls src={previewUrl} preload="metadata" />
+              ) : null}
               {audioPhase === "failed" && pendingAudioRef.current ? (
                 <Button
                   className="mt-3"
                   variant="outline"
                   size="sm"
-                  onClick={() => void transcribeStored(audio, pendingAudioRef.current!.blob)}
+                  onClick={() => {
+                    const pending = pendingAudioRef.current!;
+                    if (audio?.storagePath) void transcribeStored(audio);
+                    else void handleAudioData(pending.blob, pending.filename, pending.durationSec);
+                  }}
                 >
                   다시 전사
                 </Button>
@@ -483,10 +511,10 @@ function UploadPage() {
             </p>
             {isRecording ? (
               <div className="flex flex-col items-center gap-4 w-full">
-                <canvas 
-                  ref={canvasRef} 
-                  width={300} 
-                  height={60} 
+                <canvas
+                  ref={canvasRef}
+                  width={300}
+                  height={60}
                   className="w-full max-w-xs h-[60px] rounded bg-background/50"
                 />
                 <div className="text-xl font-mono text-destructive font-medium animate-pulse">
@@ -498,7 +526,11 @@ function UploadPage() {
                 </Button>
               </div>
             ) : (
-              <Button onClick={startRecording} variant="outline" className="gap-2 border-primary text-primary hover:bg-primary/5">
+              <Button
+                onClick={startRecording}
+                variant="outline"
+                className="gap-2 border-primary text-primary hover:bg-primary/5"
+              >
                 <Circle className="size-4 text-destructive" fill="currentColor" />
                 녹음 시작
               </Button>
@@ -522,7 +554,11 @@ function UploadPage() {
             형식 예: <code className="font-mono text-xs">[대표] 00:01:12</code> 다음 줄에 발화, 또는{" "}
             <code className="font-mono text-xs">조사원: …</code>
             {" · "}
-            <a className="underline underline-offset-2" href="/samples/ai-sme-interview.txt" download>
+            <a
+              className="underline underline-offset-2"
+              href="/samples/ai-sme-interview.txt"
+              download
+            >
               예시 파일 받기
             </a>
           </p>
@@ -538,11 +574,7 @@ function UploadPage() {
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="프로젝트">
-            <NativeSelect
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              required
-            >
+            <NativeSelect value={projectId} onChange={(e) => setProjectId(e.target.value)} required>
               {liveProjects.length === 0 ? (
                 <option value="">먼저 프로젝트를 만드세요</option>
               ) : null}
@@ -569,10 +601,7 @@ function UploadPage() {
             />
           </Field>
           <Field label="유형">
-            <NativeSelect
-              value={sessionKind}
-              onChange={(e) => setSessionKind(e.target.value)}
-            >
+            <NativeSelect value={sessionKind} onChange={(e) => setSessionKind(e.target.value)}>
               {SESSION_KINDS.map((k) => (
                 <option key={k} value={k}>
                   {k}
@@ -630,9 +659,7 @@ function UploadPage() {
                   </span>
                   <Input
                     value={speakerMap[name] ?? name}
-                    onChange={(e) =>
-                      setSpeakerMap((m) => ({ ...m, [name]: e.target.value }))
-                    }
+                    onChange={(e) => setSpeakerMap((m) => ({ ...m, [name]: e.target.value }))}
                   />
                 </div>
               ))}

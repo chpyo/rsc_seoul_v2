@@ -1,5 +1,16 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BookOpen, Clock, FilePlus2, FolderOpen, Library, Loader2, LogIn, LogOut, Settings, ShieldCheck } from "lucide-react";
+import {
+  BookOpen,
+  Clock,
+  FilePlus2,
+  FolderOpen,
+  Library,
+  Loader2,
+  LogIn,
+  LogOut,
+  Settings,
+  ShieldCheck,
+} from "lucide-react";
 import { type ReactNode } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
@@ -97,7 +108,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <Settings className="size-4" />
                   </Link>
                 </Button>
-                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={logout}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={logout}
+                >
                   <LogOut className="size-4 mr-1.5" />
                   <span className="hidden max-w-28 truncate sm:inline">
                     {user.displayName || "로그아웃"}
@@ -134,7 +150,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="paper-ruled rounded-md border border-border bg-card px-6 py-10 sm:px-8">
               <BrandMark className="size-12 text-primary" title={APP_NAME} />
               <h1 className="mt-5 font-serif text-4xl font-semibold tracking-tight">{APP_NAME}</h1>
-              <p className="mt-1 text-xs tracking-wide text-muted-foreground uppercase">{APP_NAME_EN}</p>
+              <p className="mt-1 text-xs tracking-wide text-muted-foreground uppercase">
+                {APP_NAME_EN}
+              </p>
               <p className="mt-4 text-sm leading-relaxed text-ink-soft">{APP_TAGLINE}</p>
               <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
                 현장 기록을 이어서 보려면 로그인하세요.
@@ -176,8 +194,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 uploadActive ? "text-primary" : "text-muted-foreground",
               )}
             >
-              <FilePlus2 className="size-5 mb-0.5" />
-              새 녹취
+              <FilePlus2 className="size-5 mb-0.5" />새 녹취
             </Link>
           ) : null}
         </div>

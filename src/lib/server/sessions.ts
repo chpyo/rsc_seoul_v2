@@ -18,7 +18,12 @@ function caughtMessage(err: unknown, fallback: string): string {
 
 export const analyzeSession = createServerFn({ method: "POST" })
   .middleware([writerAuthMiddleware])
-  .validator((input: { meta: Parameters<typeof analyzeTranscript>[0]["meta"]; segments: Parameters<typeof analyzeTranscript>[0]["segments"] }) => input)
+  .validator(
+    (input: {
+      meta: Parameters<typeof analyzeTranscript>[0]["meta"];
+      segments: Parameters<typeof analyzeTranscript>[0]["segments"];
+    }) => input,
+  )
   .handler(async ({ data }) => {
     try {
       const result = await analyzeTranscript({
@@ -105,6 +110,10 @@ export const testEnvHandler = createServerFn({ method: "POST" })
   .middleware([firebaseAuthMiddleware])
   .handler(async () => {
     return {
-      configured: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY),
+      configured: !!(
+        process.env.GEMINI_API_KEY ||
+        process.env.GOOGLE_GENAI_API_KEY ||
+        process.env.GOOGLE_API_KEY
+      ),
     };
   });

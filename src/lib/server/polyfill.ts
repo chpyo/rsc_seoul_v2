@@ -30,4 +30,3 @@ if (typeof global !== "undefined") {
     gl.__filename = currentFile;
   }
 }
-
