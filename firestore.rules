@@ -1,0 +1,89 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.email != null &&
+        (request.auth.token.email == 'chpyo25@gmail.com' || request.auth.token.email == 'vyckdghks@gmail.com');
+    }
+
+    // Helper function for user data isolation on mutation (with admin override)
+    function isOwner() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        resource.data.get('owner_uid', '') == '' ||
+        resource.data.get('owner_uid', '') == request.auth.uid
+      );
+    }
+    
+    function canCreate(uid) {
+      return isAuthenticated() && (
+        isAdmin() ||
+        uid == '' ||
+        request.auth.uid == uid
+      );
+    }
+
+    match /projects/{documentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isOwner();
+    }
+    
+    match /sessions/{documentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner();
+    }
+    
+    match /segments/{documentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner();
+    }
+    
+    match /themes/{documentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner();
+    }
+    
+    match /excerpts/{documentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner();
+    }
+    
+    match /facts/{documentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner();
+    }
+    
+    match /tags/{documentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner();
+    }
+    
+    match /literatures/{documentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.get('uid', '') == '' ||
+        resource.data.get('uid', '') == request.auth.uid
+      );
+    }
+    
+    match /test/{documentId} {
+      allow read: if true;
+    }
+  }
+}

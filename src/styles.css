@@ -1,0 +1,117 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-background: #f3f1eb;
+  --color-foreground: #1b1d1c;
+  --color-card: #fffcf7;
+  --color-card-foreground: #1b1d1c;
+  --color-popover: #fffcf7;
+  --color-popover-foreground: #1b1d1c;
+  --color-primary: #243f38;
+  --color-primary-foreground: #f6f4ef;
+  --color-secondary: #e8e4d9;
+  --color-secondary-foreground: #1b1d1c;
+  --color-muted: #ece8de;
+  --color-muted-foreground: #5c605d;
+  --color-accent: #dfe8e3;
+  --color-accent-foreground: #1b1d1c;
+  --color-destructive: #8f2d2d;
+  --color-destructive-foreground: #fbfaf6;
+  --color-inju: #8c3b2a;
+  --color-inju-foreground: #f6f4ef;
+  --color-border: #ddd6c8;
+  --color-input: #ddd6c8;
+  --color-ring: #243f38;
+  --color-ink-soft: #3c403e;
+  --color-paper-2: #ebe6db;
+  --color-highlight: #e7efe9;
+
+  --font-sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Noto Sans KR",
+    sans-serif;
+  --font-serif: "Noto Serif KR", "Apple Myungjo", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius: 8px;
+
+  --shadow-panel: 0 1px 0 color-mix(in oklab, var(--color-foreground) 4%, transparent);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    font-family: var(--font-serif);
+    letter-spacing: -0.03em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
+
+.paper-ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 27px,
+    color-mix(in oklab, var(--color-foreground) 5.5%, transparent) 28px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+}

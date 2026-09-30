@@ -1,0 +1,127 @@
+{
+  "collections": [
+    {
+      "name": "projects",
+      "fields": {
+        "id": "string",
+        "owner_uid": "string",
+        "title": "string",
+        "year": "number",
+        "kind": "string",
+        "description": "string",
+        "cross_summary": "map",
+        "cross_summary_at": "timestamp",
+        "created_at": "timestamp"
+      }
+    },
+    {
+      "name": "sessions",
+      "fields": {
+        "id": "string",
+        "owner_uid": "string",
+        "project_id": "string",
+        "title": "string",
+        "session_date": "string",
+        "session_kind": "string",
+        "industry": "string",
+        "size_label": "string",
+        "district": "string",
+        "researcher": "string",
+        "status": "string",
+        "original_filename": "string",
+        "original_text": "string",
+        "audio_storage_path": "string",
+        "audio_mime_type": "string",
+        "audio_filename": "string",
+        "audio_size_bytes": "number",
+        "audio_duration_sec": "number",
+        "corpus_text": "string",
+        "corpus_themes": "array",
+        "corpus_embedding": "array",
+        "headline": "string",
+        "minutes_overview": "string",
+        "minutes_body": "string",
+        "minutes_followups": "array",
+        "unresolved": "array",
+        "analysis_error": "string",
+        "created_at": "timestamp",
+        "updated_at": "timestamp",
+        "confirmed_at": "timestamp"
+      }
+    },
+    {
+      "name": "segments",
+      "fields": {
+        "id": "string",
+        "owner_uid": "string",
+        "session_id": "string",
+        "code": "string",
+        "seq": "number",
+        "speaker": "string",
+        "ts": "string",
+        "body": "string"
+      }
+    },
+    {
+      "name": "themes",
+      "fields": {
+        "id": "string",
+        "owner_uid": "string",
+        "session_id": "string",
+        "sort_order": "number",
+        "title": "string",
+        "summary": "string",
+        "bullets": "array",
+        "source_segment_ids": "array",
+        "confidence": "string"
+      }
+    },
+    {
+      "name": "excerpts",
+      "fields": {
+        "id": "string",
+        "owner_uid": "string",
+        "session_id": "string",
+        "theme_id": "string",
+        "segment_code": "string",
+        "body": "string",
+        "sort_order": "number"
+      }
+    },
+    {
+      "name": "facts",
+      "fields": {
+        "id": "string",
+        "owner_uid": "string",
+        "session_id": "string",
+        "label": "string",
+        "value": "string",
+        "segment_code": "string"
+      }
+    },
+    {
+      "name": "tags",
+      "fields": {
+        "id": "string",
+        "owner_uid": "string",
+        "session_id": "string",
+        "label": "string"
+      }
+    },
+    {
+      "name": "literatures",
+      "fields": {
+        "id": "string",
+        "uid": "string",
+        "author_name": "string",
+        "source_text": "string",
+        "focus_questions": "string",
+        "document_metadata": "map",
+        "methodological_framework": "map",
+        "question_driven_analysis": "array",
+        "seoul_hrd_insights": "map",
+        "created_at": "timestamp"
+      }
+    }
+  ]
+}
