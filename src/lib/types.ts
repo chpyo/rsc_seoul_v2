@@ -202,7 +202,7 @@ export type CrossData = {
 
 export const STATUS_LABEL: Record<SessionStatus, string> = {
   uploaded: "원문",
-  analyzed: "초안",
+  analyzed: "AI 초안",
   confirmed: "확정",
 };
 

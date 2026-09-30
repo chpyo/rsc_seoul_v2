@@ -52,7 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         >
           <Link to="/" className="flex min-w-0 items-center gap-2.5">
-            <BrandMark className="size-8 text-primary" />
+            <BrandMark className="size-8" />
             <span className="font-serif text-lg leading-none font-semibold tracking-tight">
               <span className="hidden sm:inline">{APP_NAME}</span>
               <span className="sm:hidden">{APP_NAME_SHORT}</span>
@@ -149,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : (
           <div className="mx-auto flex max-w-lg flex-col gap-8 py-10 sm:py-16">
             <div className="paper-ruled rounded-md border border-border bg-card px-6 py-10 sm:px-8">
-              <BrandMark className="size-12 text-primary" title={APP_NAME} />
+              <BrandMark className="size-12" title={APP_NAME} />
               <h1 className="mt-5 font-serif text-4xl font-semibold tracking-tight">{APP_NAME}</h1>
               <p className="mt-1 text-xs tracking-wide text-muted-foreground uppercase">
                 {APP_NAME_EN}
