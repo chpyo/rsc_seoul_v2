@@ -6,6 +6,7 @@
 - 색은 한 의미만: 청록 `primary`=행동, 인주 `inju`=확정·근거(오류에 쓰지 않음), 황토 `review`=검토 필요, `destructive`=오류·삭제. Tailwind 기본 팔레트(amber/red-500 등) 직접 사용 금지
 - 글자 최소 12px(`text-xs`). `text-[10px]`·`text-[11px]` 금지
 - 세션 작업대: 단계는 `src/lib/session-stage.ts`(단계마다 주 버튼 하나), 확정 표시는 `ConfirmSeal`, 근거 분포는 `EvidenceStrip`, 단축키 J/K/L/Space/?
+- 확정본 문서(열람·HTML·한글/Word·인쇄)는 `src/lib/official-doc.ts` 모델 하나로 그린다: 화면 `OfficialMinutesDoc`, 내보내기 `minutes-export.ts`. 개조식 내어쓰기 값은 `DOC_INDENT`
 - 이름·문구는 `src/lib/brand.ts`. UI 문구에 공급자 이름(Gemini 등) 대신 하는 일을 쓴다. 오류는 원인 + 다음 행동
 
 ## 명령

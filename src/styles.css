@@ -38,6 +38,8 @@
   --color-ring: #243f38;
   --color-ink-soft: #3c403e;
   --color-paper-2: #ebe6db;
+  /* 공문서 용지 (인쇄와 같은 흰색) */
+  --color-sheet: #ffffff;
   --color-highlight: #e7efe9;
 
   --font-sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Noto Sans KR",
@@ -116,8 +118,13 @@
   }
 }
 
+@page {
+  size: A4;
+  margin: 16mm 15mm;
+}
+
 @media print {
-  header,
+  header:not(.doc-page header),
   nav,
   .no-print {
     display: none !important;
@@ -126,5 +133,25 @@
   body {
     background: white;
     color: black;
+  }
+
+  /* 공문서: 화면용 테두리·그림자·여백을 걷고 용지 여백(@page)을 쓴다 */
+  .doc-page {
+    max-width: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  /* 근거 칩은 인쇄하면 괄호 속 코드 글자로 */
+  .doc-page button {
+    border: 0 !important;
+    padding: 0 !important;
+    background: none !important;
+    color: inherit !important;
+  }
+
+  .doc-page section {
+    break-inside: avoid-page;
   }
 }
