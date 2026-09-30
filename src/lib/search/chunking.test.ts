@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  bestUtterance,
   chunkSegments,
+  parseUtteranceLine,
   codeNumber,
   groupHitsBySource,
   literatureChunks,
@@ -125,4 +127,32 @@ test("구간 코드는 숫자 순으로 합친다", () => {
     "S1000",
   ]);
   assert.equal(codeNumber("S045"), 45);
+});
+
+test("발언 한 줄을 코드·화자·시각·내용으로 나눈다", () => {
+  assert.deepEqual(parseUtteranceLine("[S012] 화자1 (00:12:30): 청년 채용이 어렵습니다"), {
+    code: "S012",
+    speaker: "화자1",
+    ts: "00:12:30",
+    text: "청년 채용이 어렵습니다",
+  });
+  assert.deepEqual(parseUtteranceLine("[S003] 김대표: 네"), {
+    code: "S003",
+    speaker: "김대표",
+    ts: "",
+    text: "네",
+  });
+  assert.equal(parseUtteranceLine("개요 문장").text, "개요 문장");
+});
+
+test("질문과 가장 많이 겹치는 발언을 고른다", () => {
+  const h = (text: string): ChunkHit => ({ ...hit("a", ["S001"]), text });
+  const hits = [
+    h("[S001] 화자1: 날씨 이야기\n[S002] 화자2: 주말 훈련 참여가 어렵다"),
+    h("[S010] 화자1: 청년 채용 기피가 심하다"),
+  ];
+  assert.equal(bestUtterance(hits, "청년 채용 문제")!.code, "S010");
+  assert.equal(bestUtterance(hits, "주말 훈련")!.code, "S002");
+  assert.equal(bestUtterance(hits, "관계없는 질문")!.code, "S001");
+  assert.equal(bestUtterance([], "x"), null);
 });

@@ -2,7 +2,7 @@ import { loadChatCaseContext, searchConfirmedCases } from "@/lib/firebase-db";
 import { getLiterature, listLiteratures } from "@/lib/firebase-literature";
 import { tokenize } from "@/lib/ai/corpus";
 import { runProjectAssistant } from "@/lib/ai/run";
-import type { SourceGroup } from "@/lib/search/chunking";
+import { bestUtterance, mergedCodes, type SourceGroup } from "@/lib/search/chunking";
 import { evidenceReason, searchEvidence } from "@/lib/search/search";
 import type { ChatCaseContext, ChatLiteratureContext, Citation, RelatedCase } from "@/lib/types";
 
@@ -49,17 +49,31 @@ async function gatherByVector(
       evidence: (g?.hits ?? []).map((h) => ({ codes: h.segmentCodes, text: h.text })),
     };
   });
-  const sessionRelated: RelatedCase[] = cases.map((c) => ({
-    type: "session",
-    id: c.sessionId,
-    sessionId: c.sessionId,
-    title: c.title,
-    sessionTitle: c.title,
-    projectTitle: c.projectTitle,
-    sessionDate: c.sessionDate,
-    headline: c.headline,
-    reason: evidenceReason(groupsById.get(c.sessionId)?.hits ?? []),
-  }));
+  const sessionRelated: RelatedCase[] = cases.map((c) => {
+    const hits = groupsById.get(c.sessionId)?.hits ?? [];
+    const u = bestUtterance(hits, question);
+    const codes = mergedCodes(hits);
+    return {
+      type: "session",
+      id: c.sessionId,
+      sessionId: c.sessionId,
+      title: c.title,
+      sessionTitle: c.title,
+      projectTitle: c.projectTitle,
+      sessionDate: c.sessionDate,
+      headline: c.headline,
+      reason: evidenceReason(hits),
+      evidence: u
+        ? {
+            // 가장 가까운 발언의 코드를 맨 앞에 둔다(누르면 그 구간으로 이동)
+            codes: u.code ? [u.code, ...codes.filter((x) => x !== u.code)] : codes,
+            speaker: u.speaker,
+            ts: u.ts,
+            text: u.text,
+          }
+        : undefined,
+    };
+  });
 
   const literatures: ChatLiteratureContext[] = [];
   const litRelated: RelatedCase[] = [];
@@ -90,6 +104,9 @@ async function gatherByVector(
       sessionDate: lit.document_metadata?.year || null,
       headline: lit.seoul_hrd_insights?.core_implication || "",
       reason: `관련 문헌: ${g.hits.map((h) => h.label).join(", ")}`,
+      evidence: g.hits[0]
+        ? { codes: [], label: g.hits[0].label, text: g.hits[0].text.replace(/\n/g, " ") }
+        : undefined,
     });
   }
   return { cases, literatures, sessionRelated, litRelated };

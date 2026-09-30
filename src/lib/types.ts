@@ -134,6 +134,8 @@ export type RelatedCase = {
   sessionDate: string | null;
   headline: string;
   reason: string;
+  /** 질문과 가장 가까운 발언(현장록) 또는 내용(문헌록) — 결과 카드에 먼저 보여 준다 */
+  evidence?: { codes: string[]; speaker?: string; ts?: string; label?: string; text: string };
 };
 
 export type ChatGroundedReply = {

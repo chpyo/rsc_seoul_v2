@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Globe, Plus, User } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
@@ -20,49 +20,47 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createProject, listProjects, listSessions } from "@/lib/firebase-db";
 import { PROJECT_KINDS } from "@/lib/types";
-import { formatDateKo } from "@/lib/utils";
+import { cn, formatDateKo } from "@/lib/utils";
+import { buildWorkQueue } from "@/lib/work-queue";
 import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/")({
   component: Home,
 });
 
+type Filter = "review" | "analyze";
+
 function Home() {
   const { user, canWrite } = useAuth();
   const uid = user?.uid;
   const qc = useQueryClient();
-  const [sessionScope, setSessionScope] = useState<"all" | "mine">("all");
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<Filter>("review");
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects", uid],
     queryFn: () => listProjects(uid!),
     enabled: !!uid,
   });
-  const { data: sessions = [] } = useQuery({
-    queryKey: ["sessions", uid, sessionScope],
-    queryFn: () => listSessions(uid!, undefined, sessionScope),
+  const { data: sessions = [], isLoading } = useQuery({
+    queryKey: ["sessions", uid, "all"],
+    queryFn: () => listSessions(uid!, undefined, "all"),
     enabled: !!uid,
   });
 
-  const confirmed = sessions.filter((s) => s.status === "confirmed").length;
-  const drafts = sessions.filter((s) => s.status !== "confirmed").length;
-  const [open, setOpen] = useState(false);
+  const queue = useMemo(() => buildWorkQueue(sessions), [sessions]);
+  const myList = filter === "review" ? queue.inReview : queue.toAnalyze;
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="max-w-xl">
-          <h1 className="font-serif text-4xl font-semibold tracking-tight sm:text-5xl">
-            현장의 목소리를 자산으로
-          </h1>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            녹취록을 업로드하여 회의록 초안을 만들고, 전 연구원과 확정본을 통합 자료실에 구축하세요.
+        <div>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight">작업 현황</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {canWrite
+              ? "내가 올린 녹취 중 다음 단계가 남은 것부터 보여 줍니다."
+              : "팀이 확정한 기록과 프로젝트를 볼 수 있습니다."}
           </p>
-          <div className="mt-3 flex items-center gap-2 text-sm tabular-nums text-muted-foreground">
-            <span>공동 프로젝트 {projects.length}</span>
-            <span>·</span>
-            <span>{sessionScope === "all" ? "전체 기록" : "내 기록"} {sessions.length} (확정 {confirmed} / 초안 {drafts})</span>
-          </div>
         </div>
         {canWrite ? (
           <div className="flex gap-2">
@@ -80,11 +78,128 @@ function Home() {
         ) : null}
       </section>
 
+      <section aria-label="요약" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {canWrite ? (
+          <>
+            <QueueTile
+              label="검토 중"
+              hint="AI 초안 · 검토 후 확정"
+              value={queue.inReview.length}
+              tone="review"
+              active={filter === "review"}
+              onClick={() => setFilter("review")}
+            />
+            <QueueTile
+              label="분석 대기"
+              hint="원문 · 분석 필요"
+              value={queue.toAnalyze.length}
+              tone="action"
+              active={filter === "analyze"}
+              onClick={() => setFilter("analyze")}
+            />
+            <QueueTile
+              label="이번 주 확정"
+              hint="내가 최근 7일에 확정"
+              value={queue.confirmedThisWeek}
+              tone="seal"
+            />
+          </>
+        ) : null}
+        <QueueTile
+          label="팀 확정 누적"
+          hint="자료실에 쌓인 확정본"
+          value={queue.teamConfirmed}
+          tone="seal"
+          to="/library"
+        />
+      </section>
+
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        {canWrite ? (
+          <section className="flex flex-col gap-3">
+            <h2 className="font-sans text-base font-semibold">
+              {filter === "review" ? "검토할 초안" : "분석할 원문"}
+              <span className="ml-1.5 text-muted-foreground tabular-nums">{myList.length}</span>
+            </h2>
+            {isLoading ? (
+              <p className="py-6 text-sm text-muted-foreground">불러오는 중</p>
+            ) : myList.length === 0 ? (
+              <EmptyState
+                action={
+                  filter === "analyze" ? (
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/upload" search={{ projectId: undefined }}>
+                        새 녹취 올리기
+                      </Link>
+                    </Button>
+                  ) : undefined
+                }
+              >
+                {filter === "review"
+                  ? "검토할 초안이 없습니다. 분석을 마친 녹취가 여기에 모입니다."
+                  : "분석을 기다리는 원문이 없습니다."}
+              </EmptyState>
+            ) : (
+              <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+                {myList.slice(0, 12).map((s) => (
+                  <li key={s.id}>
+                    <Link
+                      to="/sessions/$sessionId"
+                      params={{ sessionId: s.id }}
+                      className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/40"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{s.title}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {s.projectTitle} · {s.sessionKind} · {formatDateKo(s.sessionDate)}
+                        </p>
+                      </div>
+                      <StatusBadge status={s.status} />
+                      <span className="hidden shrink-0 text-sm font-medium text-primary sm:inline">
+                        {s.status === "uploaded" ? "분석하기" : "검토하기"}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
+
+        <section className="flex flex-col gap-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-sans text-base font-semibold">최근 확정</h2>
+            <Link to="/library" className="text-sm text-muted-foreground hover:text-foreground">
+              자료실
+            </Link>
+          </div>
+          {queue.recentConfirmed.length === 0 ? (
+            <EmptyState>아직 확정된 기록이 없습니다.</EmptyState>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {queue.recentConfirmed.map((s) => (
+                <li key={s.id}>
+                  <Link
+                    to="/library/$sessionId"
+                    params={{ sessionId: s.id }}
+                    search={{ seg: undefined }}
+                    className="block rounded-md border border-border border-l-2 border-l-inju bg-card px-3 py-2.5 transition-colors hover:border-primary/40"
+                  >
+                    <p className="truncate font-serif text-sm font-semibold">{s.title}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {s.projectTitle} · {s.researcher ? `${s.researcher} · ` : ""}
+                      {formatDateKo(s.confirmedAt)} 확정
+                    </p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-serif text-xl font-semibold">프로젝트</h2>
-          <span className="text-xs text-muted-foreground">전체 연구원 공유 워크스페이스</span>
-        </div>
+        <h2 className="font-sans text-base font-semibold">프로젝트</h2>
         {projects.length === 0 ? (
           <EmptyState
             action={
@@ -98,121 +213,39 @@ function Home() {
             아직 프로젝트가 없습니다. 연도·유형으로 조사 단위를 나누세요.
           </EmptyState>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {projects.map((p) => (
-              <Link key={p.id} to="/projects/$projectId" params={{ projectId: p.id }}>
-                <Card className="h-full transition-colors hover:border-primary/40">
-                  <CardContent className="flex h-full flex-col gap-3 p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap gap-1.5">
-                          <span className="rounded-sm border border-primary/25 px-1.5 py-0.5 text-xs tracking-wide text-primary">
-                            {p.year ?? "연도 미정"}
-                          </span>
-                          <span className="rounded-sm border border-border px-1.5 py-0.5 text-xs text-muted-foreground">
-                            {p.kind}
-                          </span>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((p) => {
+              const pct =
+                p.sessionCount > 0 ? Math.round((p.confirmedCount / p.sessionCount) * 100) : 0;
+              return (
+                <Link key={p.id} to="/projects/$projectId" params={{ projectId: p.id }}>
+                  <Card className="h-full transition-colors hover:border-primary/40">
+                    <CardContent className="flex h-full flex-col gap-2 p-4">
+                      <p className="text-xs text-muted-foreground">
+                        {p.year ?? "연도 미정"} · {p.kind}
+                      </p>
+                      <h3 className="font-sans text-base font-semibold leading-snug">{p.title}</h3>
+                      <div className="mt-auto flex items-center gap-2 pt-1">
+                        <div
+                          className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
+                          role="progressbar"
+                          aria-valuenow={pct}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label="확정 비율"
+                        >
+                          <div className="h-full bg-inju" style={{ width: `${pct}%` }} />
                         </div>
-                        <h3 className="mt-2 font-serif text-lg font-semibold">{p.title}</h3>
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          확정 {p.confirmedCount}/{p.sessionCount}
+                        </span>
                       </div>
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {p.confirmedCount}/{p.sessionCount}
-                      </span>
-                    </div>
-                    {p.description ? (
-                      <p className="line-clamp-2 text-sm text-muted-foreground">{p.description}</p>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-serif text-xl font-semibold">최근 기록</h2>
-          <div className="inline-flex rounded-lg border border-border p-0.5 bg-muted/30">
-            <button
-              type="button"
-              onClick={() => setSessionScope("all")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-all ${
-                sessionScope === "all"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Globe className="size-3.5" />
-              전체 공유 기록
-            </button>
-            <button
-              type="button"
-              onClick={() => setSessionScope("mine")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-all ${
-                sessionScope === "mine"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <User className="size-3.5" />
-              내가 올린 기록만
-            </button>
-          </div>
-        </div>
-
-        {sessions.length === 0 ? (
-          <EmptyState
-            action={
-              canWrite ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/upload" search={{ projectId: undefined }}>
-                    새 녹취
-                  </Link>
-                </Button>
-              ) : undefined
-            }
-          >
-            {sessionScope === "mine"
-              ? "내가 등록한 녹취가 없습니다. 상단 '새 녹취'를 눌러 올려보세요."
-              : "업로드된 녹취가 없습니다. 녹취를 올리면 여기에 쌓입니다."}
-          </EmptyState>
-        ) : (
-          <ul className="divide-y divide-border border-y border-border">
-            {sessions.slice(0, 10).map((s) => (
-              <li key={s.id}>
-                <Link
-                  to="/sessions/$sessionId"
-                  params={{ sessionId: s.id }}
-                  className="flex items-center gap-4 px-0 py-3.5 transition-colors hover:bg-muted/40"
-                >
-                  <time className="w-20 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
-                    {formatDateKo(s.sessionDate)}
-                  </time>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate font-medium">{s.title}</p>
-                      {s.isOwner ? (
-                        <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
-                          내 자료
-                        </span>
-                      ) : (
-                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                          {s.researcher ? `${s.researcher} 연구원` : "공동자료"}
-                        </span>
-                      )}
-                    </div>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {s.projectTitle} · {s.sessionKind}
-                      {s.researcher && s.isOwner ? ` · 담당: ${s.researcher}` : ""}
-                      {s.headline ? ` · ${s.headline}` : ""}
-                    </p>
-                  </div>
-                  <StatusBadge status={s.status} />
+                    </CardContent>
+                  </Card>
                 </Link>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
         )}
       </section>
 
@@ -228,6 +261,59 @@ function Home() {
       ) : null}
     </div>
   );
+}
+
+const TONE = {
+  review: "text-review",
+  action: "text-primary",
+  seal: "text-inju",
+} as const;
+
+function QueueTile({
+  label,
+  hint,
+  value,
+  tone,
+  active,
+  onClick,
+  to,
+}: {
+  label: string;
+  hint: string;
+  value: number;
+  tone: keyof typeof TONE;
+  active?: boolean;
+  onClick?: () => void;
+  to?: "/library";
+}) {
+  const body = (
+    <>
+      <span className="text-sm font-medium text-foreground">{label}</span>
+      <span className={cn("font-sans text-3xl font-semibold tabular-nums", TONE[tone])}>
+        {value}
+      </span>
+      <span className="text-xs text-muted-foreground">{hint}</span>
+    </>
+  );
+  const cls = cn(
+    "flex flex-col gap-1 rounded-lg border bg-card px-4 py-3 text-left transition-colors",
+    active ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40",
+  );
+  if (to) {
+    return (
+      <Link to={to} className={cls}>
+        {body}
+      </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <button type="button" className={cls} onClick={onClick} aria-pressed={active}>
+        {body}
+      </button>
+    );
+  }
+  return <div className={cls}>{body}</div>;
 }
 
 function CreateProjectDialog({
@@ -300,11 +386,7 @@ function CreateProjectDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="pkind">유형</Label>
-              <NativeSelect
-                id="pkind"
-                value={kind}
-                onChange={(e) => setKind(e.target.value)}
-              >
+              <NativeSelect id="pkind" value={kind} onChange={(e) => setKind(e.target.value)}>
                 {PROJECT_KINDS.map((k) => (
                   <option key={k} value={k}>
                     {k}

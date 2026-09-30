@@ -176,3 +176,41 @@ export function codeNumber(code: string): number {
   const n = Number.parseInt(code.replace(/^\D+/, ""), 10);
   return Number.isFinite(n) ? n : 0;
 }
+
+// ---------- 결과 카드용 발언 고르기 ----------
+
+export type Utterance = { code: string; speaker: string; ts: string; text: string };
+
+/** "[S012] 화자1 (00:12:30): 내용" 한 줄을 나눈다. 형식이 다르면 내용만 돌려준다. */
+export function parseUtteranceLine(line: string): Utterance {
+  const m = line.match(/^\[(S\d{3,4})\]\s*([^:(]+?)\s*(?:\(([^)]*)\))?:\s*(.*)$/s);
+  if (!m) return { code: "", speaker: "", ts: "", text: line.trim() };
+  return { code: m[1]!, speaker: m[2]!.trim(), ts: (m[3] ?? "").trim(), text: m[4]!.trim() };
+}
+
+function words(v: string): string[] {
+  return v
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((t) => t.length >= 2);
+}
+
+/**
+ * 검색된 묶음들 가운데 질문과 낱말이 가장 많이 겹치는 발언 한 줄.
+ * 겹치는 낱말이 없으면 가장 가까운 묶음의 첫 줄.
+ */
+export function bestUtterance(hits: ChunkHit[], query: string): Utterance | null {
+  const q = new Set(words(query));
+  let best: { u: Utterance; score: number } | null = null;
+  for (const hit of hits) {
+    for (const line of hit.text.split("\n")) {
+      if (!line.trim()) continue;
+      const u = parseUtteranceLine(line);
+      const score = words(u.text).filter((w) => q.has(w)).length;
+      if (!best || score > best.score) best = { u, score };
+    }
+  }
+  if (best && best.score > 0) return best.u;
+  const first = hits[0]?.text.split("\n").find((l) => l.trim());
+  return first ? parseUtteranceLine(first) : null;
+}
